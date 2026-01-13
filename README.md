@@ -1,288 +1,265 @@
 # Gorigami Data Framework
 
-**Gorigami Data Framework** is a modular, end-to-end data framework designed to **ingest, process, validate, and expose data in a reliable and scalable way**, using open-source technologies and reproducible engineering practices.
+A comprehensive, modular data engineering framework for building reliable, scalable data pipelines from ingestion through transformation to analytics-ready data.
 
-The framework is built to run consistently **locally, on-premise, or in the cloud**, and can be adopted **incrementally**, based on an organization’s data maturity.
-
----
-
-## 🎯 Purpose
-
-The goal of the Gorigami Data Framework is to help organizations move from raw data to **trusted analytics and decision-ready information**, without locking themselves into proprietary platforms.
-
-It enables teams to:
-
-- Ingest data from multiple sources
-- Orchestrate and automate data pipelines
-- Transform data at scale
-- Enforce data quality checks
-- Serve curated datasets for analytics, reporting, and machine learning
-- Grow toward advanced analytics and Data Science over time
-
-This framework focuses on **operational data reliability**, not just dashboards.
+**Repository**: <https://github.com/gorigamidev/gorigamiDataFrame>
 
 ---
 
-## 🧠 Core Principles
+## Overview
 
-- **Modularity**  
-  Each capability can be implemented independently and combined progressively.
+The Gorigami Data Framework provides a complete solution for modern data engineering with five integrated layers:
 
-- **Data as Code**  
-  Pipelines, transformations, and quality rules are versioned and auditable.
-
-- **Clear Separation of Responsibilities**  
-  Orchestration, processing, validation, and consumption are intentionally decoupled.
-
-- **Portability First**  
-  The same architecture runs in local development, on-premise environments, or cloud infrastructure.
-
-- **Open-Source by Design**  
-  No vendor lock-in. All core components are replaceable.
+- **Ingestion Layer** - Connectors + Extractors with schema validation
+- **Transformation Layer** - PySpark with reusable transformation functions
+- **Quality Layer** - Source profiling and pipeline validation
+- **Orchestration Layer** - Custom Airflow operators and task factories
+- **Data Catalog** - API for discovery, metadata, and governance
 
 ---
 
-## 🏗️ High-Level Architecture
+## Architecture
 
 ```text
-
-[ Data Sources ]
-        | 
-        v
-[ Data Ingestion ]
-(Python / Spark Jobs)
-        | 
-        v
-[ Orchestration ]
-( Airflow )
-        | 
-        v
-[ Data Processing ]
-( Spark / PySpark )
-        | 
-        v
-[ Data Quality ]
-( Checks & Validations )
-        | 
-        v
-[ Data Storage & Serving ]
-( PostgreSQL )
-        | 
-        v
-[ Reporting / Analytics / ML ]
-
+┌──────────────────────────────────────────────────────────────────┐
+│                     Gorigami Data Framework                       │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  Sources → Connectors → Extractors → Bronze (Parquet)            │
+│              ↓             ↓             ↓                        │
+│          Validate      Profile      Catalog                      │
+│                                         ↓                         │
+│                                    Transformers                   │
+│                                         ↓                         │
+│                                    Silver (PostgreSQL)            │
+│                                         ↓                         │
+│                                    Validate & Catalog             │
+│                                         ↓                         │
+│                                    Analytics & BI                 │
+│                                                                   │
+├──────────────────────────────────────────────────────────────────┤
+│  Orchestration: Airflow DAGs with custom operators               │
+│  Governance: Data Catalog API with lineage & access control      │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📦 Framework Modules
+## Quick Start
 
-### 1. Data Ingestion
+### 1. Clone and Setup
 
-Responsible for extracting data from external systems and bringing it into the platform.
+```bash
+# Clone repository
+git clone https://github.com/gorigamidev/gorigamiDataFrame.git
+cd gorigamiDataFrame
 
-#### **Capabilities Data Ingestion**
+# Create your project branch
+git checkout -b my-project-name
 
-- API ingestion
-- Database extraction
-- File-based ingestion
-- Incremental loads
-- Execution logging and retries
+# Install dependencies
+pip install -r requirements.txt
 
-Ingestion can be implemented using lightweight Python extractors or Spark jobs when volume requires it.
+# Configure environment
+cp .env.example .env
+# Edit .env with your settings
+```
 
----
+### 2. Initialize Infrastructure
 
-### 2. Orchestration
+```bash
+# Start Docker services
+docker-compose up -d
 
-Pipeline execution and dependency management are handled centrally.
+# Initialize database schemas
+psql -h localhost -U gorigami -d gorigami_analytics < storage/sql/init_schema.sql
+psql -h localhost -U gorigami -d gorigami_analytics < storage/sql/silver_schema.sql
+psql -h localhost -U gorigami -d gorigami_analytics < storage/sql/quality_metadata_schema.sql
+psql -h localhost -U gorigami -d gorigami_analytics < storage/sql/catalog_schema.sql
+```
 
-#### **Capabilities Orchestration**
+### 3. Run Examples
 
-- Scheduling and automation
-- Dependency management
-- Retries and failure handling
-- Operational alerting
+```bash
+# File ingestion example
+python examples/file_ingestion_example.py
 
-The orchestration layer ensures that data pipelines run in a controlled and observable manner.
+# Transformation example
+python examples/sales_transformer_example.py
 
----
+# Quality validation example
+python examples/data_quality_example.py
+```
 
-### 3. Data Processing
+### 4. Start Catalog API
 
-This layer is responsible for transforming raw data into curated, analytics-ready datasets.
-
-#### **Capabilities Data Processing**
-
-- Batch transformations
-- Data normalization and enrichment
-- Feature engineering
-- Layered data models (raw → curated → consumption)
-
-Processing is designed for scalability and reproducibility.
-
----
-
-### 4. Data Quality
-
-Before data is exposed for consumption, it must pass explicit quality validations.
-
-#### **Capabilities Data Quality**
-
-- Schema and null checks
-- Volume and freshness validation
-- Business rule validation
-- Fail-fast pipeline behavior
-
-Data that does not meet quality expectations is not published.
-
----
-
-### 5. Data Storage & Serving
-
-Curated data is stored in a serving layer optimized for analytics and consumption.
-
-#### **Capabilities Data Storage & Serving**
-
-- Analytics-ready tables
-- Semantic views
-- Controlled access for consumers
-
-This layer acts as the single source of truth for reporting and analytics.
-
----
-
-### 6. Reporting & Dashboards
-
-This module enables human-friendly access to data through web-based reporting tools.
-
-#### **Capabilities Reporting & Dashboards**
-
-- Interactive dashboards
-- KPI visualization
-- Web access via browser
-- Report sharing via URLs
-
-Reporting tools connect exclusively to curated and validated datasets.
-
----
-
-### 7. Advanced Analytics & Data Science (Optional)
-
-The framework is designed to support advanced analytics and machine learning workflows.
-
-#### **Capabilities Advanced Analytics & Data Science**
-
-- Feature datasets for ML
-- Integration with notebooks
-- Model training pipelines
-- Reproducible experimentation
-
-This module builds on top of the same trusted data foundations.
-
----
-
-### 8. Reporting & BI / Business Analytics
-
-The Reporting & BI module provides a **human-friendly consumption layer** for the curated and validated data produced by the framework.
-
-Its purpose is to enable business users, analysts, and decision-makers to **explore, visualize, and share insights** without interacting directly with data pipelines or processing logic.
-
-#### **Capabilities Reporting & BI / BA**
-
-- Interactive dashboards and KPI visualization
-- Web-based access (browser-only, no client installation)
-- Report and dashboard sharing via URLs
-- Filterable and drill-down analytics
-- SQL access for advanced users (optional)
-
-This module connects **exclusively** to the curated data storage and serving layer, ensuring consistency and trust in reported metrics.
-
-#### **Default Implementation**
-
-The framework uses **Metabase** as the default reporting and BI tool:
-
-- Open-source and self-hosted
-- Fully containerized (Docker-based)
-- Cross-platform (Mac, Windows, Linux)
-- Direct integration with PostgreSQL
-- Designed for rapid adoption by non-technical users
-
-Metabase is deployed as a standalone container and operates as a **pure consumption layer**, with no responsibility for data transformation or business logic.
-
-This separation ensures that reporting remains simple, scalable, and aligned with the single source of truth defined by the framework.
-
----
-
-## ⚙️ Technology Stack (Core)
-
-The framework uses a small, focused set of open-source technologies:
-
-- **Apache Airflow** – Pipeline orchestration
-- **Apache Spark (PySpark)** – Distributed data processing
-- **PostgreSQL** – Analytics serving layer
-- **Python** – Ingestion, validation, and glue logic
-- **Docker** – Execution and portability
-
-All components are containerized and designed to run together using Docker Compose.
-
----
-
-## 🧩 Repository Structure (Suggested)
-
-```text
-gorigami-data-framework-ProjectName/
-├── airflow/
-│   └── dags/
-├── ingestion/
-│   └── extractors/
-├── processing/
-│   └── spark_jobs/
-├── quality/
-│   └── checks/
-├── storage/
-│   └── sql/
-├── reporting/
-├── docker-compose.yml
-└── README.md
-└── LICENSE
-└── requirements.txt
+```bash
+uvicorn catalog.api.catalog_api:app --reload --port 8000
+# Access docs at http://localhost:8000/docs
 ```
 
 ---
 
-## 🚀 Getting Started
+## Framework Layers
 
-This repository is intended as a **framework template**, not a one-click product.
+### 1. Ingestion Layer (Bronze)
 
-Typical usage:
+Extract data from sources to bronze Parquet layer with full traceability.
 
-1. Clone the repository
-2. Configure data sources
-3. Define ingestion and transformation jobs
-4. Add quality rules
-5. Expose curated datasets for reporting or analytics
+**Components**:
 
-Each organization can extend or adapt modules as needed.
+- **Connectors** - Validate connections and entity existence
+- **Extractors** - Extract data with schema application
+
+**Supported**: CSV, Parquet, XLSX, JSON
+
+**Documentation**: [ingestion/README.md](ingestion/README.md)
+
+### 2. Transformation Layer (Silver)
+
+Transform bronze data to curated silver PostgreSQL layer.
+
+**Components**:
+
+- **BaseTransformer** - PySpark transformation orchestration
+- **12 Common Transformations** - Clean, deduplicate, enrich, aggregate
+
+**Documentation**: [processing/README.md](processing/README.md)
+
+### 3. Quality Layer
+
+Ensure data quality through profiling and validation.
+
+**Components**:
+
+- **Source Profiler** - Audit with quality scoring
+- **Pipeline Validator** - Rule-based validation with quality gates
+
+**Documentation**: [quality/README.md](quality/README.md)
+
+### 4. Orchestration Layer
+
+Orchestrate pipelines with Airflow.
+
+**Components**:
+
+- **3 Custom Operators** - Ingestion, Transformation, Validation
+- **Pipeline Factory** - Simplified DAG creation
+
+**Documentation**: [airflow/README.md](airflow/README.md)
+
+### 5. Data Catalog
+
+Centralized discovery, metadata, and governance.
+
+**Components**:
+
+- **Catalog API** - FastAPI REST endpoints
+- **Auto-Registration** - From extractors/transformers
+
+**Documentation**: [catalog/README.md](catalog/README.md)
 
 ---
 
-## 🧭 When to Use This Framework
+## Key Features
 
-This framework is a good fit when:
+### ✅ Complete Traceability
 
-- You want control over your data pipelines
-- You need portability across environments
-- You prefer open-source and transparency
-- You want to scale from reporting to Data Science without re-architecting
+- Bronze metadata: `_extraction_timestamp`, `_source_system`, `_source_entity`
+- Silver metadata: `_silver_load_timestamp`, `_bronze_source_path`, `_transformer_name`
+
+### ✅ Quality Gates
+
+- Bronze validation blocks transformation if data is poor
+- Silver validation ensures only quality data reaches consumers
+- Configurable rules in YAML
+
+### ✅ Data Lineage
+
+- Track upstream sources and downstream consumers
+- Transformation tracking
+- Lineage visualization via catalog API
+
+### ✅ Governance
+
+- Access control policies
+- PII detection and tagging
+- Compliance tracking
+- Audit logging
 
 ---
 
-## 📌 Final Note
+## Technology Stack
 
-The Gorigami Data Framework is intentionally **opinionated but flexible**.
-
-It does not try to solve everything at once.  
-It provides a solid, reproducible foundation on top of which analytics, reporting, and machine learning can grow safely.
+- **Python 3.9+** - Core language
+- **PySpark 3.5** - Data processing
+- **PostgreSQL** - Metadata and silver layer
+- **Apache Airflow 2.8** - Orchestration
+- **FastAPI** - Catalog API
+- **Docker** - Infrastructure
 
 ---
+
+## Project Structure
+
+```text
+gorigamiDataFrame/
+├── ingestion/          # Connectors + extractors
+├── processing/         # Transformers + transformations
+├── quality/            # Profiling + validation
+├── catalog/            # Data catalog API
+├── airflow/            # DAGs + operators
+├── storage/sql/        # Database schemas
+├── config/             # Configurations
+├── examples/           # Usage examples
+└── tests/              # Tests
+```
+
+---
+
+## Documentation
+
+- **[Quick Start Guide](QUICKSTART.md)** - Detailed setup
+- **[Contributing Guide](CONTRIBUTING.md)** - Development workflow
+- **[Ingestion Layer](ingestion/README.md)** - Connectors and extractors
+- **[Transformation Layer](processing/README.md)** - PySpark transformers
+- **[Quality Layer](quality/README.md)** - Profiling and validation
+- **[Orchestration](airflow/README.md)** - Airflow operators
+- **[Data Catalog](catalog/README.md)** - Discovery and governance
+
+---
+
+## Development Workflow
+
+This framework is designed as a **template** for building data projects:
+
+1. **Clone** the repository
+2. **Create a project branch** with your project name
+3. **Customize** for your use case:
+   - Add connectors for your sources
+   - Create transformers for your business logic
+   - Define quality rules for your data
+   - Build DAGs for your pipelines
+4. **Extend** as needed - The framework is modular
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+---
+
+## License
+
+Proprietary - Gorigami
+
+This framework is provided to authorized users only for their internal business operations.
+
+For licensing inquiries: <develop@gorigami.com>
+
+---
+
+## Support
+
+For questions or issues, contact the Gorigami data team.
+
+---
+
+Built with modern data engineering best practices for scalability, reliability, and maintainability.
