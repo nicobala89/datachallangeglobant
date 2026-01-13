@@ -22,21 +22,21 @@ The Gorigami Data Framework provides a complete solution for modern data enginee
 
 ```text
 ┌──────────────────────────────────────────────────────────────────┐
-│                     Gorigami Data Framework                       │
+│                     Gorigami Data Framework                      │
 ├──────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                  │
 │  Sources → Connectors → Extractors → Bronze (Parquet)            │
-│              ↓             ↓             ↓                        │
+│              ↓             ↓             ↓                       │
 │          Validate      Profile      Catalog                      │
-│                                         ↓                         │
-│                                    Transformers                   │
-│                                         ↓                         │
-│                                    Silver (PostgreSQL)            │
-│                                         ↓                         │
-│                                    Validate & Catalog             │
-│                                         ↓                         │
-│                                    Analytics & BI                 │
-│                                                                   │
+│                                         ↓                        │
+│                                    Transformers                  │
+│                                         ↓                        │
+│                                    Silver (PostgreSQL)           │
+│                                         ↓                        │
+│                                    Validate & Catalog            │
+│                                         ↓                        │
+│                                    Analytics & BI                │
+│                                                                  │
 ├──────────────────────────────────────────────────────────────────┤
 │  Orchestration: Airflow DAGs with custom operators               │
 │  Governance: Data Catalog API with lineage & access control      │
@@ -204,15 +204,42 @@ Centralized discovery, metadata, and governance.
 
 ```text
 gorigamiDataFrame/
-├── ingestion/          # Connectors + extractors
-├── processing/         # Transformers + transformations
-├── quality/            # Profiling + validation
-├── catalog/            # Data catalog API
-├── airflow/            # DAGs + operators
-├── storage/sql/        # Database schemas
-├── config/             # Configurations
-├── examples/           # Usage examples
-└── tests/              # Tests
+├── airflow/                # Orchestration
+│   ├── dags/               # Airflow DAGs
+│   ├── operators/          # Custom operators
+│   └── utils/              # Pipeline factory
+├── ingestion/              # Ingestion layer
+│   ├── connectors/         # Connection validators
+│   ├── extractors/         # Data extractors
+│   └── schemas/            # Data schemas
+├── processing/             # Transformation layer
+│   ├── transformers/       # PySpark transformers
+│   ├── transformations/    # Transformation functions
+│   └── spark_jobs/         # Spark job scripts
+├── quality/                # Quality layer
+│   ├── profiling/          # Source profiling
+│   ├── validation/         # Pipeline validation
+│   └── checks/             # Quality checks
+├── catalog/                # Data catalog
+│   ├── api/                # FastAPI application
+│   └── client/             # Catalog client
+├── storage/                # Storage layer
+│   └── sql/                # SQL schemas
+├── config/                 # Configuration files
+│   ├── sources/            # Source configs
+│   ├── transformations/    # Transformation configs
+│   └── quality/            # Quality rules
+├── examples/               # Usage examples
+├── tests/                  # Tests
+├── reporting/              # BI and reporting
+├── docker-compose.yml      # Infrastructure
+├── requirements.txt        # Python dependencies
+├── .env.example            # Environment template
+├── .gitignore              # Git ignore rules
+├── LICENSE                 # License
+├── README.md               # This file
+├── QUICKSTART.md           # Quick start guide
+└── CONTRIBUTING.md         # Development guide
 ```
 
 ---
