@@ -1,0 +1,74 @@
+# Bronze Layer Quality Rules
+
+rules:
+  # Schema validation
+  - name: required_columns_bronze
+    type: schema
+    severity: error
+    config:
+      columns:
+        - transaction_id
+        - customer_id
+        - product_id
+        - quantity
+        - unit_price
+        - total_amount
+        - transaction_date
+        - _extraction_timestamp
+        - _source_system
+        - _source_entity
+
+  # Null checks
+  - name: no_nulls_in_keys
+    type: null_check
+    severity: error
+    config:
+      columns:
+        - transaction_id
+        - customer_id
+        - product_id
+      max_null_percentage: 0
+
+  - name: limited_nulls_in_optional
+    type: null_check
+    severity: warning
+    config:
+      columns:
+        - customer_email
+        - notes
+      max_null_percentage: 50
+
+  # Volume checks
+  - name: minimum_volume
+    type: volume
+    severity: warning
+    config:
+      min_rows: 1
+      max_rows: 10000000
+
+  # Freshness check
+  - name: data_freshness
+    type: freshness
+    severity: warning
+    config:
+      column: _extraction_timestamp
+      max_age_hours: 48
+
+  # Business rules
+  - name: positive_quantity
+    type: business_rule
+    severity: error
+    config:
+      condition: "quantity > 0"
+
+  - name: positive_prices
+    type: business_rule
+    severity: error
+    config:
+      condition: "unit_price > 0 AND total_amount > 0"
+
+  - name: amount_calculation
+    type: business_rule
+    severity: warning
+    config:
+      condition: "ABS(total_amount - (quantity * unit_price)) < 0.01"

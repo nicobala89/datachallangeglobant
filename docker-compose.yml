@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  # PostgreSQL - Analytics Serving Layer
+  postgres:
+    image: postgres:15-alpine
+    container_name: gorigami-postgres
+    environment:
+      POSTGRES_USER: gorigami
+      POSTGRES_PASSWORD: gorigami_password
+      POSTGRES_DB: gorigami_analytics
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./storage/sql:/docker-entrypoint-initdb.d
+    networks:
+      - gorigami-network
+
+  # Apache Airflow - Orchestration
+  airflow-webserver:
+    image: apache/airflow:2.8.1-python3.11
+    container_name: gorigami-airflow-webserver
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://gorigami:gorigami_password@postgres/gorigami_analytics
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./ingestion:/opt/airflow/ingestion
+      - ./processing:/opt/airflow/processing
+      - ./quality:/opt/airflow/quality
+      - airflow_logs:/opt/airflow/logs
+    ports:
+      - "8080:8080"
+    command: webserver
+    networks:
+      - gorigami-network
+
+  airflow-scheduler:
+    image: apache/airflow:2.8.1-python3.11
+    container_name: gorigami-airflow-scheduler
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://gorigami:gorigami_password@postgres/gorigami_analytics
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./ingestion:/opt/airflow/ingestion
+      - ./processing:/opt/airflow/processing
+      - ./quality:/opt/airflow/quality
+      - airflow_logs:/opt/airflow/logs
+    command: scheduler
+    networks:
+      - gorigami-network
+
+  # Apache Spark - Data Processing
+  spark-master:
+    image: bitnami/spark:3.5
+    container_name: gorigami-spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - "8081:8080"
+      - "7077:7077"
+    volumes:
+      - ./processing:/opt/spark-apps
+    networks:
+      - gorigami-network
+
+  spark-worker:
+    image: bitnami/spark:3.5
+    container_name: gorigami-spark-worker
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./processing:/opt/spark-apps
+    networks:
+      - gorigami-network
+
+  # Metabase - Reporting & BI
+  metabase:
+    image: metabase/metabase:latest
+    container_name: gorigami-metabase
+    depends_on:
+      - postgres
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: gorigami_analytics
+      MB_DB_PORT: 5432
+      MB_DB_USER: gorigami
+      MB_DB_PASS: gorigami_password
+      MB_DB_HOST: postgres
+    ports:
+      - "3000:3000"
+    volumes:
+      - metabase_data:/metabase-data
+    networks:
+      - gorigami-network
+
+networks:
+  gorigami-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  airflow_logs:
+  metabase_data:

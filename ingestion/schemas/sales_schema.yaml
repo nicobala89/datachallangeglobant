@@ -1,0 +1,54 @@
+# Example Schema Definition for Sales Data
+
+version: "1.0"
+description: "Schema for sales transaction data"
+
+columns:
+  - name: transaction_id
+    type: string
+    required: true
+    description: "Unique transaction identifier"
+
+  - name: customer_id
+    type: string
+    required: true
+    description: "Customer identifier"
+
+  - name: product_id
+    type: string
+    required: true
+    description: "Product identifier"
+
+  - name: quantity
+    type: integer
+    required: true
+    description: "Quantity purchased"
+    validation:
+      min: 1
+
+  - name: unit_price
+    type: float
+    required: true
+    description: "Price per unit"
+    validation:
+      min: 0
+
+  - name: total_amount
+    type: float
+    required: true
+    description: "Total transaction amount"
+
+  - name: transaction_date
+    type: datetime
+    required: true
+    description: "Date and time of transaction"
+
+  - name: customer_email
+    type: string
+    required: false
+    description: "Customer email address"
+
+  - name: notes
+    type: string
+    required: false
+    description: "Additional notes"

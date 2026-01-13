@@ -1,0 +1,77 @@
+# Silver Layer Quality Rules
+
+rules:
+  # Schema validation
+  - name: required_columns_silver
+    type: schema
+    severity: error
+    config:
+      columns:
+        - transaction_id
+        - customer_id
+        - product_id
+        - quantity
+        - unit_price
+        - total_amount
+        - transaction_date
+        - _silver_load_timestamp
+        - _bronze_source_path
+        - _transformer_name
+
+  # Uniqueness check
+  - name: unique_transaction_id
+    type: uniqueness
+    severity: error
+    config:
+      columns:
+        - transaction_id
+
+  # Null checks
+  - name: no_nulls_in_required_fields
+    type: null_check
+    severity: error
+    config:
+      columns:
+        - transaction_id
+        - customer_id
+        - product_id
+        - quantity
+        - unit_price
+        - total_amount
+        - transaction_date
+      max_null_percentage: 0
+
+  # Business rules
+  - name: valid_quantity
+    type: business_rule
+    severity: error
+    config:
+      condition: "quantity > 0 AND quantity < 10000"
+
+  - name: valid_amount
+    type: business_rule
+    severity: error
+    config:
+      condition: "total_amount > 0 AND total_amount < 1000000"
+
+  - name: valid_date_range
+    type: business_rule
+    severity: error
+    config:
+      condition: "transaction_date >= '2020-01-01' AND transaction_date <= CURRENT_DATE()"
+
+  # Volume checks
+  - name: expected_volume
+    type: volume
+    severity: warning
+    config:
+      min_rows: 100
+      max_rows: 5000000
+
+  # Freshness check
+  - name: silver_freshness
+    type: freshness
+    severity: warning
+    config:
+      column: _silver_load_timestamp
+      max_age_hours: 24
