@@ -11,7 +11,7 @@ The Gorigami Data Framework is designed as a **template** for building data engi
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/gorigamidev/gorigamiDataFrame.git
 cd gorigamiDataFrame
 ```
 
