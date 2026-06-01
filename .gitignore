@@ -48,6 +48,7 @@ airflow/logs/
 *.csv
 *.parquet
 *.json
+!railway.json
 data/raw/
 data/processed/
 !data/.gitkeep

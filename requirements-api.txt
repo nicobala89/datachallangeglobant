@@ -1,0 +1,14 @@
+# Minimal dependencies for the FastAPI service on Railway.
+# The full requirements.txt (with PySpark, dbt, great-expectations) is only
+# needed for local development and the Airflow/Spark containers.
+
+fastapi>=0.109.0
+uvicorn>=0.27.0
+psycopg2-binary>=2.9.9
+fastavro>=1.9.4
+pydantic>=2.5.0
+pyarrow>=15.0.0
+pandas>=2.2.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+loguru>=0.7.2
