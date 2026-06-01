@@ -2,7 +2,7 @@
 
 A complete end-to-end data platform built for the Globant Data Engineering Challenge. It covers CSV ingestion, bronze/silver/gold medallion architecture, PySpark analytics, AVRO backup/restore, Airflow orchestration, and a Metabase analytics dashboard — all wired together through a FastAPI control plane with a minimalist web UI.
 
-**Author**: [Nicolás Balaguera](https://nicobalaguera.com) · [LinkedIn](https://www.linkedin.com/in/nicolas-alejandro-balaguera-gonzalez/)
+**Author**: [Nicolás Balaguera](https://nicobalaguera.com) · [LinkedIn](https://www.linkedin.com/in/nicolas-alejandro-balaguera-gonzalez/) · [GitHub](https://github.com/nicobala89/GlobantDataChallenge)
 
 ---
 
