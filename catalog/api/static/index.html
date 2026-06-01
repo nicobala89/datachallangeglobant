@@ -389,7 +389,7 @@
         <h2>Pipeline Control</h2>
         <div class="pipeline-topbar">
             <span style="font-size:12px;color:var(--mid)">Trigger Airflow DAGs without opening the Airflow UI. Results appear in Metabase (Dashboard tab).</span>
-            <a href="http://localhost:8080" target="_blank" class="btn btn-ghost btn-sm">Open Airflow ↗</a>
+            <a id="airflow-link" href="#" target="_blank" class="btn btn-ghost btn-sm" onclick="this.href=_cfg.airflow_url">Open Airflow ↗</a>
         </div>
 
         <div id="pipeline-msg"></div>
@@ -682,8 +682,6 @@ async function fetchStatus() {
     } catch (_) {}
 }
 function fmt(n) { return n != null ? Number(n).toLocaleString() : '—'; }
-fetchStatus();
-setInterval(fetchStatus, 6000);
 
 // ─────────────────────────────────────────────
 // Table column hints
@@ -964,7 +962,7 @@ function renderDagCard(id, dag) {
         <div class="dag-history" id="hist-${id}"></div>
         <div class="dag-actions">
             <button class="btn btn-sm" id="btn-${id}" onclick="triggerDag('${id}')">▶ Trigger</button>
-            <a href="http://localhost:8080/dags/${id}/grid" target="_blank" class="btn btn-ghost btn-sm">Airflow ↗</a>
+            <a href="#" target="_blank" class="btn btn-ghost btn-sm" onclick="this.href=_cfg.airflow_url+'/dags/${id}/grid'">Airflow ↗</a>
         </div>
     </div>`;
 }
@@ -1244,13 +1242,8 @@ async function loadDashboard() {
         }
         const d = await r.json();
 
-        // Browser-visible Metabase URL uses same hostname but port 3000
-        const mbHost   = `${window.location.protocol}//${window.location.hostname}:3000`;
-        const embedUrl = `${mbHost}/public/dashboard/${d.uuid}`;
-        const directUrl = `${mbHost}/dashboard/${d.dashboard_id}`;
-
-        iframe.src = embedUrl;
-        link.href  = directUrl;
+        iframe.src = d.embed_url;
+        link.href  = d.direct_url;
         link.style.display = '';
         wrap.style.display = '';
         status.textContent = `Dashboard loaded — "${d.dashboard_name}"`;
@@ -1325,7 +1318,20 @@ function showMsg(id, type, text) {
     document.getElementById(id).innerHTML = `<div class="msg ${cls}">${text}</div>`;
 }
 
+// ─────────────────────────────────────────────
+// Runtime config (public URLs for Airflow / Metabase)
+// ─────────────────────────────────────────────
+let _cfg = { airflow_url: 'http://localhost:8080', metabase_url: 'http://localhost:3000' };
+
+async function loadConfig() {
+    try {
+        const r = await fetch('/api/v1/config');
+        if (r.ok) _cfg = await r.json();
+    } catch (_) {}
+}
+
 // Init
+loadConfig().then(() => { fetchStatus(); setInterval(fetchStatus, 6000); });
 initApiKey();
 </script>
 

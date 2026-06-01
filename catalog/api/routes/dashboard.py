@@ -4,10 +4,11 @@ from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 
-MB_URL    = os.getenv("METABASE_URL",            "http://metabase:3000")
-MB_EMAIL  = os.getenv("METABASE_ADMIN_EMAIL",    "admin@globant.com")
-MB_PASS   = os.getenv("METABASE_ADMIN_PASSWORD", "Globant2026!")
-DASH_NAME = "Globant 2021 Hiring Analytics"
+MB_URL        = os.getenv("METABASE_URL",            "http://metabase:3000")
+MB_PUBLIC_URL = os.getenv("METABASE_PUBLIC_URL",     MB_URL)   # browser-visible URL
+MB_EMAIL      = os.getenv("METABASE_ADMIN_EMAIL",    "admin@globant.com")
+MB_PASS       = os.getenv("METABASE_ADMIN_PASSWORD", "Globant2026!")
+DASH_NAME     = "Globant 2021 Hiring Analytics"
 
 
 def _login() -> str:
@@ -64,4 +65,10 @@ def get_dashboard_embed():
         r.raise_for_status()
         uuid = r.json()["uuid"]
 
-    return {"uuid": uuid, "dashboard_name": DASH_NAME, "dashboard_id": dash_id}
+    return {
+        "uuid":           uuid,
+        "dashboard_name": DASH_NAME,
+        "dashboard_id":   dash_id,
+        "embed_url":      f"{MB_PUBLIC_URL}/public/dashboard/{uuid}",
+        "direct_url":     f"{MB_PUBLIC_URL}/dashboard/{dash_id}",
+    }

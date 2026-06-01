@@ -11,6 +11,9 @@ from psycopg2.extras import RealDictCursor
 import os
 from loguru import logger
 
+AIRFLOW_PUBLIC_URL  = os.getenv("AIRFLOW_PUBLIC_URL",  "http://localhost:8080")
+METABASE_PUBLIC_URL = os.getenv("METABASE_PUBLIC_URL", "http://localhost:3000")
+
 from catalog.api.models import (
     Dataset, DatasetCreate, DatasetSchema, LineageGraph,
     AccessPolicy, GovernanceTag, SearchResult, PaginatedResponse,
@@ -332,6 +335,15 @@ def list_pii_datasets(db=Depends(get_db)):
 # ============================================================================
 # Health Check
 # ============================================================================
+
+@app.get("/api/v1/config")
+def get_frontend_config():
+    """Public URLs the browser needs to link to Airflow and Metabase directly."""
+    return {
+        "airflow_url":  AIRFLOW_PUBLIC_URL,
+        "metabase_url": METABASE_PUBLIC_URL,
+    }
+
 
 @app.get("/health")
 def health_check():
