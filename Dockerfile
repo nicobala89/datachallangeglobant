@@ -22,4 +22,7 @@ RUN mkdir -p backups data/csv
 
 EXPOSE 8000
 
-CMD ["uvicorn", "catalog.api.catalog_api:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use $PORT if set (Railway injects it); fall back to 8000 for local Docker.
+# --proxy-headers + --forwarded-allow-ips: required when running behind Railway's
+# TLS-terminating reverse proxy so Swagger UI and redirect URLs use HTTPS correctly.
+CMD ["sh", "-c", "uvicorn catalog.api.catalog_api:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips '*'"]

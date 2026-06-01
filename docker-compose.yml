@@ -68,10 +68,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       API_KEY: ${API_KEY}
       BACKUP_DIR: /app/backups
+      BRONZE_DIR: /app/data/bronze
       METABASE_URL: http://metabase:3000
-      METABASE_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL}
+      METABASE_PUBLIC_URL: ${METABASE_PUBLIC_URL:-http://localhost:3000}
+      METABASE_ADMIN_EMAIL: ${METABASE_ADMIN_EMAIL}
       METABASE_ADMIN_PASSWORD: ${METABASE_ADMIN_PASSWORD}
       AIRFLOW_URL: http://airflow-webserver:8080
+      AIRFLOW_PUBLIC_URL: ${AIRFLOW_PUBLIC_URL:-http://localhost:8080}
       AIRFLOW_USERNAME: ${AIRFLOW_ADMIN_USERNAME}
       AIRFLOW_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
     volumes:
@@ -143,7 +146,7 @@ services:
     command: python scripts/metabase_setup.py
     environment:
       METABASE_URL: http://metabase:3000
-      METABASE_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL}
+      METABASE_ADMIN_EMAIL: ${METABASE_ADMIN_EMAIL}
       METABASE_ADMIN_PASSWORD: ${METABASE_ADMIN_PASSWORD}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: '5432'
