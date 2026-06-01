@@ -1,4 +1,4 @@
-"""Gorigami Data Framework - Quality Package"""
+"""Data Framework - Quality Package"""
 
 from . import profiling
 from . import validation

@@ -1,6 +1,6 @@
 """
 Base Transformer Abstract Class
-Defines the interface for all transformers in the Gorigami Data Framework.
+Defines the interface for all transformers in the Data Framework.
 """
 
 from abc import ABC, abstractmethod
@@ -250,9 +250,9 @@ class BaseTransformer(ABC):
         # Get from config or environment
         host = self.config.get('postgres_host', 'localhost')
         port = self.config.get('postgres_port', 5432)
-        database = self.config.get('postgres_database', 'gorigami_analytics')
-        user = self.config.get('postgres_user', 'gorigami')
-        password = self.config.get('postgres_password', 'gorigami_password')
+        database = self.config.get('postgres_database', 'globant_analytics')
+        user = self.config.get('postgres_user', 'globant')
+        password = self.config.get('postgres_password', 'globant_password')
         
         jdbc_url = f"jdbc:postgresql://{host}:{port}/{database}"
         

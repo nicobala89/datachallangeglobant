@@ -1,292 +1,179 @@
-# Gorigami Data Framework
+# Globant Data Engineering Challenge
 
-A comprehensive, modular data engineering framework for building reliable, scalable data pipelines from ingestion through transformation to analytics-ready data.
+A complete end-to-end data platform built for the Globant Data Engineering Challenge. It covers CSV ingestion, bronze/silver/gold medallion architecture, PySpark analytics, AVRO backup/restore, Airflow orchestration, and a Metabase analytics dashboard — all wired together through a FastAPI control plane with a minimalist web UI.
 
-**Repository**: <https://github.com/gorigamidev/gorigamiDataFrame>
-
----
-
-## Overview
-
-The Gorigami Data Framework provides a complete solution for modern data engineering with five integrated layers:
-
-- **Ingestion Layer** - Connectors + Extractors with schema validation
-- **Transformation Layer** - PySpark with reusable transformation functions
-- **Quality Layer** - Source profiling and pipeline validation
-- **Orchestration Layer** - Custom Airflow operators and task factories
-- **Data Catalog** - API for discovery, metadata, and governance
+**Author**: [Nicolás Balaguera](https://nicobalaguera.com) · [LinkedIn](https://www.linkedin.com/in/nicolas-alejandro-balaguera-gonzalez/)
 
 ---
 
 ## Architecture
 
 ```text
-┌──────────────────────────────────────────────────────────────────┐
-│                     Gorigami Data Framework                      │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  Sources → Connectors → Extractors → Bronze (Parquet)            │
-│              ↓             ↓             ↓                       │
-│          Validate      Profile      Catalog                      │
-│                                         ↓                        │
-│                                    Transformers                  │
-│                                         ↓                        │
-│                                    Silver (PostgreSQL)           │
-│                                         ↓                        │
-│                                    Validate & Catalog            │
-│                                         ↓                        │
-│                                    Analytics & BI                │
-│                                                                  │
-├──────────────────────────────────────────────────────────────────┤
-│  Orchestration: Airflow DAGs with custom operators               │
-│  Governance: Data Catalog API with lineage & access control      │
-└──────────────────────────────────────────────────────────────────┘
+CSV Upload (Portal / API)
+        │
+        ▼
+  Bronze Layer ─── Parquet files on disk (/app/data/bronze/)
+        │               orchestrated by Airflow
+        ▼
+  Silver Layer ─── PostgreSQL raw.* tables
+  (raw.departments, raw.jobs, raw.hired_employees, raw.rejected_log)
+        │               dbt + PySpark transforms
+        ▼
+  Gold Layer ──── PostgreSQL analytics.* tables
+  (analytics.mart_hires_by_quarter, analytics.mart_departments_above_mean)
+        │
+        ▼
+  Metabase Dashboard  ←─────  FastAPI /api/v1/metrics
 ```
+
+---
+
+## Services
+
+| Service | Port | Credentials |
+|---|---|---|
+| **FastAPI + Web Portal** | 8000 | API key: `globant-secret` |
+| **Apache Airflow** | 8080 | admin / admin |
+| **Metabase** | 3000 | admin@globant.com / globant-admin |
+| **PostgreSQL** | 5432 | globant / globant_password |
+| **Spark Master UI** | 8081 | — |
 
 ---
 
 ## Quick Start
 
-### 1. Clone and Setup
-
 ```bash
-# Clone repository
-git clone https://github.com/gorigamidev/gorigamiDataFrame.git
-cd gorigamiDataFrame
+# 1. Clone and configure
+cp .env.example .env          # edit API keys / passwords as needed
 
-# Create your project branch
-git checkout -b my-project-name
+# 2. Spin everything up
+docker compose up -d --build
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your settings
+# 3. Open the portal
+open http://localhost:8000
 ```
 
-### 2. Initialize Infrastructure
-
-```bash
-# Start Docker services
-docker-compose up -d
-
-# Initialize database schemas
-psql -h localhost -U gorigami -d gorigami_analytics < storage/sql/init_schema.sql
-psql -h localhost -U gorigami -d gorigami_analytics < storage/sql/silver_schema.sql
-psql -h localhost -U gorigami -d gorigami_analytics < storage/sql/quality_metadata_schema.sql
-psql -h localhost -U gorigami -d gorigami_analytics < storage/sql/catalog_schema.sql
-```
-
-### 3. Run Examples
-
-```bash
-# File ingestion example
-python examples/file_ingestion_example.py
-
-# Transformation example
-python examples/sales_transformer_example.py
-
-# Quality validation example
-python examples/data_quality_example.py
-```
-
-### 4. Start Catalog API
-
-```bash
-uvicorn catalog.api.catalog_api:app --reload --port 8000
-# Access docs at http://localhost:8000/docs
-```
+Metabase auto-configures on first boot via `scripts/metabase_setup.py` (runs as a one-shot init container).
 
 ---
 
-## Framework Layers
+## API Endpoints
 
-### 1. Ingestion Layer (Bronze)
+### Ingestion
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/ingest/{table}` | Batch ingest 1–1000 records (departments / jobs / hired_employees) |
+| `GET` | `/api/v1/status` | Record counts for all raw tables + rejection log |
 
-Extract data from sources to bronze Parquet layer with full traceability.
+### Backup / Restore
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/backup/{table}` | Serialize table to AVRO |
+| `POST` | `/api/v1/restore/{table}` | Truncate table and reload from latest AVRO |
 
-**Components**:
+### Analytics
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/metrics/hires-by-quarter` | Hires by dept/job/quarter (2021) |
+| `GET` | `/api/v1/metrics/departments-above-mean` | Departments above mean hires (2021) |
 
-- **Connectors** - Validate connections and entity existence
-- **Extractors** - Extract data with schema application
+### Pipeline & Dashboard
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/pipeline/dags` | List DAG status |
+| `POST` | `/api/v1/pipeline/dags/{dag_id}/trigger` | Trigger a DAG run |
+| `GET` | `/api/v1/pipeline/dags/{dag_id}/runs` | Recent run history |
+| `GET` | `/api/v1/dashboard-embed` | Metabase public dashboard UUID |
 
-**Supported**: CSV, Parquet, XLSX, JSON
-
-**Documentation**: [ingestion/README.md](ingestion/README.md)
-
-### 2. Transformation Layer (Silver)
-
-Transform bronze data to curated silver PostgreSQL layer.
-
-**Components**:
-
-- **BaseTransformer** - PySpark transformation orchestration
-- **12 Common Transformations** - Clean, deduplicate, enrich, aggregate
-
-**Documentation**: [processing/README.md](processing/README.md)
-
-### 3. Quality Layer
-
-Ensure data quality through profiling and validation.
-
-**Components**:
-
-- **Source Profiler** - Audit with quality scoring
-- **Pipeline Validator** - Rule-based validation with quality gates
-
-**Documentation**: [quality/README.md](quality/README.md)
-
-### 4. Orchestration Layer
-
-Orchestrate pipelines with Airflow.
-
-**Components**:
-
-- **3 Custom Operators** - Ingestion, Transformation, Validation
-- **Pipeline Factory** - Simplified DAG creation
-
-**Documentation**: [airflow/README.md](airflow/README.md)
-
-### 5. Data Catalog
-
-Centralized discovery, metadata, and governance.
-
-**Components**:
-
-- **Catalog API** - FastAPI REST endpoints
-- **Auto-Registration** - From extractors/transformers
-
-**Documentation**: [catalog/README.md](catalog/README.md)
+### Admin
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/admin/reset` | Truncate all tables + clear bronze + delete Airflow run history |
 
 ---
 
-## Key Features
+## Airflow DAGs
 
-### ✅ Complete Traceability
-
-- Bronze metadata: `_extraction_timestamp`, `_source_system`, `_source_entity`
-- Silver metadata: `_silver_load_timestamp`, `_bronze_source_path`, `_transformer_name`
-
-### ✅ Quality Gates
-
-- Bronze validation blocks transformation if data is poor
-- Silver validation ensures only quality data reaches consumers
-- Configurable rules in YAML
-
-### ✅ Data Lineage
-
-- Track upstream sources and downstream consumers
-- Transformation tracking
-- Lineage visualization via catalog API
-
-### ✅ Governance
-
-- Access control policies
-- PII detection and tagging
-- Compliance tracking
-- Audit logging
+| DAG ID | Purpose |
+|---|---|
+| `globant_csv_ingestion_dag` | Watches `/app/data/bronze/` and ingests CSVs into raw.* tables |
+| `globant_medallion_pipeline` | Full Bronze → Silver → Gold pipeline |
+| `globant_backup_dag` | AVRO backup of all raw tables |
+| `globant_restore_dag` | AVRO restore of all raw tables |
 
 ---
 
-## Technology Stack
+## Data Validation
 
-- **Python 3.9+** - Core language
-- **PySpark 3.5** - Data processing
-- **PostgreSQL** - Metadata and silver layer
-- **Apache Airflow 2.8** - Orchestration
-- **FastAPI** - Catalog API
-- **Docker** - Infrastructure
+Records are validated on ingest via Pydantic schemas (`ingestion/schemas/globant_schemas.py`):
+
+- **departments**: `id` (int), `department` (str, non-empty)
+- **jobs**: `id` (int), `job` (str, non-empty)
+- **hired_employees**: `id` (int), `name` (str), `datetime` (ISO-8601), `department_id` (int), `job_id` (int)
+
+Invalid rows are rejected and written to `raw.rejected_log` with the original row and reason — they never touch the main tables.
+
+---
+
+## Analytics Queries
+
+**Hires by quarter (2021)**
+```sql
+SELECT department, job, hire_year, q1, q2, q3, q4
+FROM analytics.mart_hires_by_quarter
+ORDER BY department, job;
+```
+
+**Departments above mean hires (2021)**
+```sql
+SELECT department, hired
+FROM analytics.mart_departments_above_mean
+ORDER BY hired DESC;
+```
 
 ---
 
 ## Project Structure
 
 ```text
-gorigamiDataFrame/
-├── airflow/                # Orchestration
-│   ├── dags/               # Airflow DAGs
-│   ├── operators/          # Custom operators
-│   └── utils/              # Pipeline factory
-├── ingestion/              # Ingestion layer
-│   ├── connectors/         # Connection validators
-│   ├── extractors/         # Data extractors
-│   └── schemas/            # Data schemas
-├── processing/             # Transformation layer
-│   ├── transformers/       # PySpark transformers
-│   ├── transformations/    # Transformation functions
-│   └── spark_jobs/         # Spark job scripts
-├── quality/                # Quality layer
-│   ├── profiling/          # Source profiling
-│   ├── validation/         # Pipeline validation
-│   └── checks/             # Quality checks
-├── catalog/                # Data catalog
-│   ├── api/                # FastAPI application
-│   └── client/             # Catalog client
-├── storage/                # Storage layer
-│   └── sql/                # SQL schemas
-├── config/                 # Configuration files
-│   ├── sources/            # Source configs
-│   ├── transformations/    # Transformation configs
-│   └── quality/            # Quality rules
-├── examples/               # Usage examples
-├── tests/                  # Tests
-├── reporting/              # BI and reporting
-├── docker-compose.yml      # Infrastructure
-├── requirements.txt        # Python dependencies
-├── .env.example            # Environment template
-├── .gitignore              # Git ignore rules
-├── LICENSE                 # License
-├── README.md               # This file
-├── QUICKSTART.md           # Quick start guide
-└── CONTRIBUTING.md         # Development guide
+GlobantDataChallange/
+├── airflow/
+│   ├── dags/                       # All Airflow DAGs
+│   └── operators/ utils/           # Custom operators & pipeline factory
+├── catalog/
+│   └── api/
+│       ├── catalog_api.py          # FastAPI app + dataset catalog endpoints
+│       ├── db.py                   # DB connection helper
+│       ├── routes/                 # ingest, backup, restore, metrics,
+│       │                           #   pipeline, dashboard, admin
+│       └── static/index.html       # Web portal UI
+├── ingestion/
+│   └── schemas/globant_schemas.py  # Pydantic validation models
+├── processing/
+│   ├── spark_jobs/                 # PySpark analytics job
+│   └── transformers/               # Medallion transformers
+├── storage/
+│   └── sql/
+│       ├── globant_schema.sql      # DDL for raw.* and analytics.*
+│       └── init_db.py              # Schema bootstrap script
+├── scripts/
+│   └── metabase_setup.py           # Metabase auto-configuration
+├── dbt/                            # dbt models (silver → gold)
+├── docker-compose.yml
+├── .env.example
+└── requirements.txt
 ```
 
 ---
 
-## Documentation
+## Running Tests
 
-- **[Quick Start Guide](QUICKSTART.md)** - Detailed setup
-- **[Contributing Guide](CONTRIBUTING.md)** - Development workflow
-- **[Ingestion Layer](ingestion/README.md)** - Connectors and extractors
-- **[Transformation Layer](processing/README.md)** - PySpark transformers
-- **[Quality Layer](quality/README.md)** - Profiling and validation
-- **[Orchestration](airflow/README.md)** - Airflow operators
-- **[Data Catalog](catalog/README.md)** - Discovery and governance
-
----
-
-## Development Workflow
-
-This framework is designed as a **template** for building data projects:
-
-1. **Clone** the repository
-2. **Create a project branch** with your project name
-3. **Customize** for your use case:
-   - Add connectors for your sources
-   - Create transformers for your business logic
-   - Define quality rules for your data
-   - Build DAGs for your pipelines
-4. **Extend** as needed - The framework is modular
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+```bash
+PYTHONPATH=. pytest tests/test_globant_challenge.py -v
+```
 
 ---
 
 ## License
 
-Proprietary - Gorigami
-
-This framework is provided to authorized users only for their internal business operations.
-
-For licensing inquiries: <develop@gorigami.com>
-
----
-
-## Support
-
-For questions or issues, contact the Gorigami data team.
-
----
-
-Built with modern data engineering best practices for scalability, reliability, and maintainability.
+MIT — see [LICENSE](LICENSE).

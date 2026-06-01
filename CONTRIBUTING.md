@@ -1,375 +1,124 @@
-# Contributing to Gorigami Data Framework
+# Development Guide
 
-## Overview
-
-The Gorigami Data Framework is designed as a **template** for building data engineering projects. This guide explains how to use the framework for your own projects.
+This document covers how to work on the Globant Data Engineering Challenge codebase locally.
 
 ---
 
-## Getting Started
-
-### 1. Clone the Repository
+## Setup
 
 ```bash
-git clone https://github.com/gorigamidev/gorigamiDataFrame.git
-cd gorigamiDataFrame
-```
-
-### 2. Create Your Project Branch
-
-**Important**: Always create a new branch for your project. This allows the framework to evolve independently while your project remains stable.
-
-```bash
-# Create and switch to your project branch
-git checkout -b my-project-name
-
-# Example: For a sales analytics project
-git checkout -b sales-analytics-pipeline
-```
-
-### 3. Initial Setup
-
-```bash
-# Install dependencies
+# Install Python dependencies (use a virtualenv)
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Set up environment
-cp .env.example .env
-# Edit .env with your configuration
-
 # Start infrastructure
-docker-compose up -d
+docker compose up -d --build
 ```
 
 ---
 
-## Development Workflow
+## Project layout
 
-### Branch Strategy
+| Path | What lives here |
+|---|---|
+| `catalog/api/catalog_api.py` | FastAPI app entry point, dataset catalog endpoints |
+| `catalog/api/routes/` | Feature routers: ingest, backup, restore, metrics, pipeline, dashboard, admin |
+| `catalog/api/static/index.html` | Single-file web portal (vanilla HTML/CSS/JS) |
+| `catalog/api/db.py` | `get_db()` dependency — psycopg2 connection |
+| `ingestion/schemas/globant_schemas.py` | Pydantic models for CSV validation |
+| `processing/spark_jobs/globant_analytics_job.py` | PySpark job computing the analytics marts |
+| `processing/transformers/globant_transformer.py` | Medallion Bronze → Silver transformer |
+| `storage/sql/globant_schema.sql` | DDL for `raw.*` and `analytics.*` schemas |
+| `storage/sql/init_db.py` | Bootstrap script — runs the DDL against a live Postgres |
+| `airflow/dags/` | All Airflow DAGs |
+| `scripts/metabase_setup.py` | Idempotent Metabase auto-configuration |
+| `dbt/` | dbt models for Silver → Gold transformation |
 
-- **`main`** - Framework template (do not modify directly)
-- **`my-project-name`** - Your project branch (customize here)
+---
 
-### Making Changes
+## Making API changes
 
-1. **Work on your project branch**:
-
-   ```bash
-   git checkout my-project-name
-   ```
-
-2. **Make your changes**:
-   - Add new connectors for your data sources
-   - Create transformers for your business logic
-   - Define quality rules for your data
-   - Build DAGs for your pipelines
-
-3. **Commit regularly**:
-
-   ```bash
-   git add .
-   git commit -m "Add sales data connector"
-   git push origin my-project-name
-   ```
-
-### Updating from Framework
-
-If the framework template is updated with new features:
+FastAPI routes are baked into the Docker image at build time (`COPY . .`). After editing any Python file under `catalog/`:
 
 ```bash
-# Fetch latest framework changes
-git fetch origin main
-
-# Merge framework updates into your project (carefully)
-git checkout my-project-name
-git merge origin/main
-
-# Resolve any conflicts
-# Test thoroughly after merge
+docker compose up -d --build fastapi
 ```
 
----
-
-## Customization Guide
-
-### Adding New Connectors
-
-1. **Create connector class**:
-
-   ```python
-   # ingestion/connectors/my_connector.py
-   from ingestion.connectors import BaseConnector
-
-   class MyConnector(BaseConnector):
-       def validate(self):
-           # Your validation logic
-           pass
-
-       def get_metadata(self):
-           # Your metadata logic
-           pass
-   ```
-
-2. **Update package init**:
-
-   ```python
-   # ingestion/connectors/__init__.py
-   from .my_connector import MyConnector
-   ```
-
-3. **Create configuration**:
-
-   ```yaml
-   # config/sources/my_source.yaml
-   type: my_connector
-   config:
-     # Your config
-   ```
-
-### Adding New Transformers
-
-1. **Create transformer class**:
-
-   ```python
-   # processing/transformers/my_transformer.py
-   from processing.transformers import BaseTransformer
-
-   class MyTransformer(BaseTransformer):
-       def transform(self, df):
-           # Your transformation logic
-           return df
-   ```
-
-2. **Use in DAG**:
-
-   ```python
-   # airflow/dags/my_pipeline_dag.py
-   from processing.transformers.my_transformer import MyTransformer
-
-   transform = TransformationOperator(
-       task_id='transform',
-       transformer_class=MyTransformer,
-       # ...
-   )
-   ```
-
-### Adding Quality Rules
-
-1. **Create rules file**:
-
-   ```yaml
-   # config/quality/my_rules.yaml
-   rules:
-     - name: my_validation
-       type: business_rule
-       severity: error
-       config:
-         condition: "amount > 0"
-   ```
-
-2. **Use in validation**:
-
-   ```python
-   validator = PipelineValidator(
-       spark=spark,
-       rules_path='config/quality/my_rules.yaml'
-   )
-   ```
-
-### Creating DAGs
-
-1. **Create DAG file**:
-
-   ```python
-   # airflow/dags/my_pipeline_dag.py
-   from airflow import DAG
-   from airflow.utils.pipeline_factory import PipelineTaskFactory
-
-   with DAG('my_pipeline', ...) as dag:
-       tasks = PipelineTaskFactory.create_complete_pipeline(
-           dag=dag,
-           pipeline_name='my_data',
-           # Your config
-       )
-   ```
-
-2. **Deploy to Airflow**:
-
-   ```bash
-   cp airflow/dags/my_pipeline_dag.py $AIRFLOW_HOME/dags/
-   ```
+The static `index.html` is served from disk — changes there take effect on hard-refresh (no rebuild needed).
 
 ---
 
-## Best Practices
+## Environment variables
 
-### Code Organization
+All defaults are in `.env.example`. Copy to `.env` before first run. Key variables:
 
-- Keep connectors in `ingestion/connectors/`
-- Keep extractors in `ingestion/extractors/`
-- Keep transformers in `processing/transformers/`
-- Keep transformation functions in `processing/transformations/`
-- Keep DAGs in `airflow/dags/`
-- Keep configs in `config/`
-
-### Configuration Management
-
-- Use YAML for all configurations
-- Use environment variables for secrets
-- Never commit credentials to Git
-- Use `.env` for local development
-
-### Testing
-
-- Test connectors before extractors
-- Test transformations with sample data
-- Validate quality rules with known data
-- Test DAGs in development Airflow first
-
-### Documentation
-
-- Document custom connectors in docstrings
-- Document transformers with usage examples
-- Document quality rules in YAML comments
-- Update project README with your specifics
+| Variable | Purpose |
+|---|---|
+| `API_KEY` | Required header for all write endpoints |
+| `POSTGRES_*` | Database connection |
+| `AIRFLOW_URL / USERNAME / PASSWORD` | Used by the pipeline proxy route |
+| `METABASE_URL / ADMIN_EMAIL / ADMIN_PASSWORD` | Used by the dashboard embed route |
+| `BRONZE_DIR` | Path inside the fastapi container for Parquet staging |
+| `BACKUP_DIR` | Path inside the fastapi container for AVRO backups |
 
 ---
 
-## Common Tasks
-
-### Adding a New Data Source
-
-1. Create connector class
-2. Create extractor (or use existing)
-3. Create schema YAML
-4. Create source config
-5. Test extraction locally
-6. Create DAG task
-7. Register in catalog
-
-### Adding a New Transformation
-
-1. Create transformer class
-2. Define transformation logic
-3. Create transformation config
-4. Test with sample data
-5. Create DAG task
-6. Add quality validation
-
-### Adding Quality Checks
-
-1. Define rules in YAML
-2. Test rules with sample data
-3. Integrate into DAG
-4. Set fail_on_error appropriately
-5. Monitor validation results
-
----
-
-## Extending the Framework
-
-### Adding New Abstractions
-
-If you find patterns that could be abstracted:
-
-1. Create the abstraction in your project branch
-2. Test thoroughly
-3. Document well
-4. Consider contributing back to main framework
-
-### Contributing Back to Framework
-
-If you create useful abstractions that could benefit others:
-
-1. Create a feature branch from `main`
-2. Implement the feature
-3. Add tests and documentation
-4. Submit a pull request
-5. Discuss with framework maintainers
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Import Errors**:
-
-- Ensure you're in the project root directory
-- Check `PYTHONPATH` includes project root
-- Verify all `__init__.py` files exist
-
-**Database Connection Errors**:
-
-- Check `.env` configuration
-- Verify Docker containers are running
-- Check PostgreSQL credentials
-
-**Airflow DAG Errors**:
-
-- Check DAG syntax with `python my_dag.py`
-- Verify all imports are available
-- Check Airflow logs
-
-**Spark Errors**:
-
-- Verify Spark is installed
-- Check PostgreSQL JDBC driver is available
-- Verify Spark configuration
-
----
-
-## Support
-
-For framework-specific questions:
-
-- Check documentation in each module
-- Review example files
-- Contact Gorigami data team
-
-For project-specific questions:
-
-- Consult your team
-- Review your project documentation
-- Check your project's issue tracker
-
----
-
-## Version Control
-
-### Recommended `.gitignore` Additions
-
-Add project-specific ignores to `.gitignore`:
-
-```gitignore
-# Project-specific data
-/data/my_project/
-
-# Project-specific configs
-/config/my_project/secrets.yaml
-
-# Project-specific outputs
-/output/my_project/
-```
-
-### Commit Messages
-
-Use clear, descriptive commit messages:
+## Running tests
 
 ```bash
-# Good
-git commit -m "Add MySQL connector for customer database"
-git commit -m "Implement sales aggregation transformer"
-git commit -m "Add PII detection rules for customer data"
-
-# Bad
-git commit -m "Update files"
-git commit -m "Fix stuff"
-git commit -m "WIP"
+PYTHONPATH=. pytest tests/test_globant_challenge.py -v
 ```
+
+Tests cover: DB constraints, authentication, ingest routes, validation schemas, backup/restore.
 
 ---
 
-## License
+## Adding a new API route
 
-Your project built on this framework inherits the Gorigami proprietary license. Contact <develop@gorigami.com> for licensing questions.
+1. Create `catalog/api/routes/my_feature.py` with an `APIRouter`
+2. Import and register it in `catalog/api/catalog_api.py`:
+   ```python
+   from catalog.api.routes.my_feature import router as my_router
+   app.include_router(my_router)
+   ```
+3. Rebuild: `docker compose up -d --build fastapi`
+
+---
+
+## Code conventions
+
+- No unnecessary comments — let names do the talking
+- Validate at system boundaries (user input, external APIs); trust internal code
+- No backwards-compatibility shims for code that no longer exists
+- One short summary line in git commits; describe *why*, not *what*
+
+---
+
+## Common tasks
+
+**Reset everything (clean slate)**
+```bash
+# Via the portal — Backup/Restore tab → Danger Zone → Reset Everything
+# Or directly:
+curl -X POST http://localhost:8000/api/v1/admin/reset -H "X-API-Key: globant-secret"
+```
+
+**Inspect the database**
+```bash
+docker compose exec postgres psql -U globant -d globant_analytics
+\dt raw.*
+\dt analytics.*
+SELECT * FROM raw.rejected_log LIMIT 10;
+```
+
+**Re-run the Metabase setup script**
+```bash
+docker compose run --rm metabase-setup
+```
+
+**Run the PySpark analytics job manually**
+```bash
+docker compose exec spark-master spark-submit \
+  --packages org.postgresql:postgresql:42.7.2 \
+  /app/processing/spark_jobs/globant_analytics_job.py
+```

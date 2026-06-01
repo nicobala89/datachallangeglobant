@@ -1,1 +1,1 @@
-"""Gorigami Data Framework - Ingestion Module"""
+"""Data Framework - Ingestion Module"""

@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Globant Data Platform</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            --black: #000;
+            --white: #fff;
+            --gray: #f2f2f2;
+            --mid: #888;
+            --border: #d0d0d0;
+            --red: #c00;
+            --green: #007700;
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        /* ── Body: grid rows = topbar / tabs / content(1fr) / footer ── */
+        html { height: 100%; }
+        body {
+            font-family: var(--font);
+            background: var(--white);
+            color: var(--black);
+            font-size: 14px;
+            line-height: 1.5;
+            display: grid;
+            grid-template-rows: auto auto 1fr auto;
+            grid-template-columns: minmax(0, 1fr); /* prevent any child from expanding the column past viewport */
+            min-height: 100vh;
+        }
+
+        /* ── Topbar (mobile-first: stacks on small screens) ── */
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 12px 16px;
+            border-bottom: 2px solid var(--black);
+        }
+        .topbar h1 { font-size: 14px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+        .topbar .api-key-row { display: flex; align-items: center; gap: 8px; }
+        .topbar input { border: 1px solid var(--border); padding: 6px 10px; font-size: 13px; width: 150px; outline: none; }
+        .topbar input:focus { border-color: var(--black); }
+        .topbar .save-btn { padding: 6px 12px; background: var(--black); color: var(--white); border: none; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap; }
+        .topbar .key-status { font-size: 12px; color: var(--mid); white-space: nowrap; }
+
+        /* ── Tabs (horizontally scrollable on mobile) ── */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            padding: 0 16px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .tabs::-webkit-scrollbar { display: none; }
+        .tab {
+            padding: 10px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            color: var(--mid);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .tab:hover { color: var(--black); }
+        .tab.active { color: var(--black); border-bottom-color: var(--black); }
+
+        /* ── Main content area (the 1fr row) ── */
+        main { width: 100%; max-width: 1100px; margin: 0 auto; align-self: start; min-width: 0; }
+        .page { display: none; padding: 20px 16px; }
+        .page.active { display: block; }
+
+        /* ── Footer (pinned to grid row 4) ── */
+        footer.footer {
+            border-top: 1px solid var(--border);
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            text-align: center;
+        }
+        .footer-left { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--mid); }
+        .footer-links { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: center; }
+        .footer-links a { font-size: 12px; color: var(--mid); text-decoration: none; border-bottom: 1px solid transparent; transition: color 0.15s; }
+        .footer-links a:hover { color: var(--black); border-bottom-color: var(--black); }
+        .footer-links .soon { font-size: 11px; color: var(--border); cursor: default; }
+
+        /* ── Shared ── */
+        h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; color: var(--mid); }
+        h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+        .section { margin-bottom: 32px; }
+        .card { border: 1px solid var(--border); padding: 16px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+        .grid-4 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .stat-card { border: 1px solid var(--border); padding: 12px 14px; }
+        .stat-card .label { font-size: 11px; color: var(--mid); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .stat-card .val { font-size: 24px; font-weight: 700; }
+        .stat-card .sub { font-size: 11px; color: var(--mid); margin-top: 2px; }
+        .btn { display: inline-block; padding: 9px 18px; background: var(--black); color: var(--white); border: 1px solid var(--black); cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+        .btn:hover { background: var(--white); color: var(--black); }
+        .btn:disabled { background: var(--gray); color: var(--mid); border-color: var(--border); cursor: not-allowed; }
+        .btn-ghost { background: var(--white); color: var(--black); }
+        .btn-ghost:hover { background: var(--gray); }
+        .btn-sm { padding: 5px 12px; font-size: 11px; }
+        .btn-red { background: var(--red); border-color: var(--red); }
+        .btn-red:hover { background: var(--white); color: var(--red); }
+        .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: var(--gray); font-weight: 600; text-align: left; padding: 9px 12px; border: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+        td { padding: 8px 12px; border: 1px solid var(--border); vertical-align: top; }
+        tr:hover td { background: var(--gray); }
+        .tag { display: inline-block; padding: 2px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; }
+        .tag-raw { background: #e8f0ff; color: #003; }
+        .tag-analytics { background: #e8ffe8; color: #030; }
+        .tag-ok { background: #e8ffe8; color: #030; }
+        .tag-warn { background: #fff3e8; color: #630; }
+        .msg { padding: 12px 16px; font-size: 13px; margin-bottom: 16px; }
+        .msg-ok { background: #f0fff0; border-left: 4px solid var(--green); }
+        .msg-err { background: #fff0f0; border-left: 4px solid var(--red); }
+        .msg-info { background: #f0f4ff; border-left: 4px solid #336; }
+        .loader { color: var(--mid); font-size: 13px; font-style: italic; padding: 8px 0; }
+
+        /* ── Ingest tab ── */
+        .order-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; background: var(--gray); border: 1px solid var(--border); margin-bottom: 20px; font-size: 12px; }
+        .order-hint span { font-weight: 700; }
+        .order-step { background: var(--black); color: var(--white); padding: 2px 8px; font-size: 11px; font-weight: 700; }
+        .arrow { color: var(--mid); }
+        .dropzone { border: 2px dashed var(--border); padding: 28px 16px; text-align: center; cursor: pointer; transition: background 0.15s; }
+        .dropzone:hover, .dropzone.dragover { background: var(--gray); border-color: var(--black); }
+        .dropzone p { font-size: 13px; color: var(--mid); }
+        .dropzone p strong { color: var(--black); }
+        #file-input { display: none; }
+        .progress-wrap { background: var(--gray); height: 6px; margin: 12px 0; }
+        .progress-bar { height: 6px; background: var(--black); width: 0%; transition: width 0.2s; }
+        .result-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+        .result-row:last-child { border-bottom: none; }
+        .num-ok { color: var(--green); font-weight: 700; }
+        .num-err { color: var(--red); font-weight: 700; }
+        .rejection-scroll { max-height: 180px; overflow-y: auto; background: var(--gray); padding: 10px; font-family: monospace; font-size: 11px; border: 1px solid var(--border); margin-top: 10px; line-height: 1.8; }
+
+        /* ── Pipeline tab ── */
+        .dag-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+        .dag-card { border: 1px solid var(--border); padding: 16px; }
+        .dag-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+        .dag-name { font-weight: 700; font-size: 14px; }
+        .dag-desc { font-size: 12px; color: var(--mid); margin-top: 3px; }
+        .dag-meta { font-size: 12px; color: var(--mid); margin-bottom: 10px; min-height: 18px; }
+        .dag-history { display: flex; gap: 5px; margin-bottom: 14px; min-height: 12px; flex-wrap: wrap; }
+        .dag-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--border); cursor: default; flex-shrink: 0; }
+        .dag-dot.success { background: var(--green); }
+        .dag-dot.failed  { background: var(--red); }
+        .dag-dot.running { background: #0066cc; }
+        .dag-dot.queued  { background: #888; }
+        .dag-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .dag-status-badge { font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 3px 9px; letter-spacing: 0.5px; white-space: nowrap; flex-shrink: 0; }
+        .badge-success { background: #e8ffe8; color: #007700; }
+        .badge-failed  { background: #fff0f0; color: #c00; }
+        .badge-running { background: #e8f0ff; color: #003; }
+        .badge-queued  { background: var(--gray); color: var(--mid); }
+        .badge-none    { background: var(--gray); color: var(--mid); }
+        .pipeline-topbar { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 20px; }
+
+        /* ── Catalog tab ── */
+        .lineage-wrap { padding: 16px; background: var(--gray); border: 1px solid var(--border); font-family: monospace; font-size: 11px; line-height: 1.9; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+        .layer-header { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--mid); }
+        .l-bronze { color: #7a4500; font-weight: 700; }
+        .l-silver { color: #336; font-weight: 700; }
+        .l-gold   { color: #005500; font-weight: 700; }
+        .l-dbt    { color: #5500aa; font-weight: 700; }
+        .l-src    { color: var(--mid); }
+        .l-arrow  { color: #999; }
+        .schema-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--border); font-size: 12px; margin: 3px; flex-wrap: wrap; }
+        .col-type { color: var(--mid); font-size: 11px; margin-left: 4px; }
+        .dbt-model-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+        .dbt-card { border: 1px solid var(--border); padding: 14px 16px; }
+        .dbt-card h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #5500aa; margin-bottom: 10px; }
+        .dbt-card .mat { font-size: 11px; color: var(--mid); margin-bottom: 8px; }
+        .dbt-card code { font-size: 12px; color: var(--black); }
+        .tag-bronze { background: #fff3e0; color: #7a4500; }
+        .tag-silver { background: #e8f0ff; color: #003; }
+        .tag-gold   { background: #e8ffe8; color: #030; }
+        .tag-dbt    { background: #f3e8ff; color: #5500aa; }
+        .tag-audit  { background: #fff0f0; color: #600; }
+
+        /* ── Table Explorer (catalog) column control ── */
+        .table-scroll table          { min-width: 520px; }
+        /* col 1 — layer tag: fixed narrow */
+        .table-scroll th:nth-child(1),
+        .table-scroll td:nth-child(1) { width: 90px; white-space: nowrap; }
+        /* col 3 — row count: fixed narrow, right-aligned */
+        .table-scroll th:nth-child(3),
+        .table-scroll td:nth-child(3) { width: 56px; text-align: right; white-space: nowrap; font-weight: 700; }
+        /* col 4 — type label: fixed medium */
+        .table-scroll th:nth-child(4),
+        .table-scroll td:nth-child(4) { width: 100px; font-size: 12px; }
+        /* col 5 — key columns: wraps, monospace, muted */
+        .table-scroll th:nth-child(5),
+        .table-scroll td:nth-child(5) { font-family: monospace; font-size: 11px; color: var(--mid); word-break: break-word; min-width: 140px; }
+
+        /* ── Schema Reference cards ── */
+        .grid-2 .card { overflow-x: auto; }
+        .grid-2 .card h3 { font-size: 13px; font-weight: 700; margin-bottom: 12px; word-break: break-word; line-height: 1.5; }
+        .grid-2 .card table { font-size: 12px; }
+        .grid-2 .card th,
+        .grid-2 .card td          { padding: 7px 10px; }
+        /* Column name — 30% */
+        .grid-2 .card th:first-child,
+        .grid-2 .card td:first-child { width: 30%; font-weight: 600; }
+        /* Type — 28%, monospace */
+        .grid-2 .card th:nth-child(2),
+        .grid-2 .card td:nth-child(2) { width: 28%; font-family: monospace; font-size: 11px; color: var(--mid); }
+        /* Constraint/Notes — 42%, wraps */
+        .grid-2 .card th:nth-child(3),
+        .grid-2 .card td:nth-child(3) { width: 42%; font-size: 11px; color: var(--mid); word-break: break-word; }
+
+        /* ── Dashboard tab ── */
+        .dash-wrap { position: relative; width: 100%; height: 420px; border: 1px solid var(--border); background: var(--gray); }
+        .dash-wrap iframe { width: 100%; height: 100%; border: none; display: block; }
+        .dash-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .dash-toolbar a { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--black); text-decoration: none; border-bottom: 1px solid var(--black); padding-bottom: 1px; }
+        .dash-toolbar a:hover { color: var(--mid); border-color: var(--mid); }
+        #dash-status { font-size: 12px; color: var(--mid); }
+
+        /* ── Danger Zone ── */
+        .danger-zone { border: 1px solid var(--red); padding: 18px; margin-top: 8px; }
+        .danger-zone h3 { color: var(--red); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+        .danger-zone p  { font-size: 12px; color: var(--mid); margin-bottom: 14px; line-height: 1.7; }
+        .reset-result   { font-family: monospace; font-size: 11px; background: var(--gray); border: 1px solid var(--border); padding: 10px; max-height: 160px; overflow-y: auto; margin-top: 12px; line-height: 1.8; display: none; }
+
+        /* ── Backup tab ── */
+        .backup-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 24px; }
+        .backup-card { border: 1px solid var(--border); padding: 16px; }
+        .backup-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .backup-card .actions { display: flex; gap: 8px; flex-direction: column; }
+        .op-log { background: var(--gray); border: 1px solid var(--border); padding: 12px; font-family: monospace; font-size: 11px; max-height: 220px; overflow-y: auto; line-height: 1.9; }
+        .op-log .op-ok { color: var(--green); }
+        .op-log .op-err { color: var(--red); }
+        .op-log .op-info { color: var(--mid); }
+
+        /* ════════════════════════════════════
+           Responsive: tablet ≥ 640px
+           ════════════════════════════════════ */
+        @media (min-width: 640px) {
+            .topbar { padding: 14px 28px; }
+            .topbar h1 { font-size: 16px; }
+            .topbar input { width: 220px; }
+            .tabs { padding: 0 28px; }
+            .tab { padding: 12px 20px; font-size: 13px; }
+            .page { padding: 28px; }
+            .section { margin-bottom: 36px; }
+            .card { padding: 18px; }
+            .grid-2 { grid-template-columns: 1fr 1fr; }
+            .grid-4 { grid-template-columns: repeat(4, 1fr); gap: 14px; }
+            .stat-card { padding: 14px 18px; }
+            .stat-card .val { font-size: 28px; }
+            .dag-grid { grid-template-columns: 1fr 1fr; }
+            .backup-grid { grid-template-columns: repeat(3, 1fr); }
+            .dbt-model-grid { grid-template-columns: 1fr 1fr; }
+            .lineage-wrap { font-size: 12px; padding: 20px; white-space: pre; word-break: normal; }
+            .dash-wrap { height: calc(100vh - 220px); min-height: 500px; }
+            footer.footer { flex-direction: row; justify-content: space-between; padding: 18px 28px; text-align: left; }
+            .footer-links { justify-content: flex-end; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+    <h1>◆ Globant Data Platform</h1>
+    <div class="api-key-row">
+        <span class="key-status" id="key-status">API key not saved</span>
+        <input type="password" id="api-key-input" placeholder="Enter API Key">
+        <button class="save-btn" onclick="saveApiKey()">Save</button>
+    </div>
+</div>
+
+<!-- Tab bar -->
+<div class="tabs">
+    <div class="tab active" onclick="switchTab('ingest', this)">Ingest</div>
+    <div class="tab" onclick="switchTab('analytics', this)">Pipeline</div>
+    <div class="tab" onclick="switchTab('catalog', this)">Catalog</div>
+    <div class="tab" onclick="switchTab('dashboard', this)">Dashboard</div>
+    <div class="tab" onclick="switchTab('backup', this)">Backup / Restore</div>
+</div>
+
+<main>
+
+<!-- ═══════════════════════════════════════════════════ INGEST ═══ -->
+<div class="page active" id="page-ingest">
+
+    <div class="section">
+        <h2>Database Status</h2>
+        <div class="grid-4" id="status-cards">
+            <div class="stat-card"><div class="label">Departments</div><div class="val" id="st-dept">—</div></div>
+            <div class="stat-card"><div class="label">Jobs</div><div class="val" id="st-jobs">—</div></div>
+            <div class="stat-card"><div class="label">Hired Employees</div><div class="val" id="st-emp">—</div></div>
+            <div class="stat-card"><div class="label">Rejected Log</div><div class="val" id="st-rej">—</div><div class="sub">rows with violations</div></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>CSV Migration</h2>
+
+        <div class="order-hint">
+            <span>Load order:</span>
+            <span class="order-step">1 · departments</span>
+            <span class="arrow">→</span>
+            <span class="order-step">2 · jobs</span>
+            <span class="arrow">→</span>
+            <span class="order-step">3 · hired_employees</span>
+            <span style="color:var(--mid);font-size:11px;margin-left:4px">(FK constraints require this order)</span>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+            <div style="display:flex;gap:16px;align-items:flex-end">
+                <div style="flex:1">
+                    <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px">Target Table</label>
+                    <select id="table-select" style="width:100%;padding:9px;border:1px solid var(--border);font-size:13px;outline:none;">
+                        <option value="departments">departments</option>
+                        <option value="jobs">jobs</option>
+                        <option value="hired_employees">hired_employees</option>
+                    </select>
+                </div>
+                <div style="font-size:12px;color:var(--mid);padding-bottom:10px" id="expected-cols"></div>
+            </div>
+        </div>
+
+        <div class="dropzone" id="dropzone" onclick="document.getElementById('file-input').click()">
+            <p id="drop-text"><strong>Drop CSV here</strong> or click to browse</p>
+            <p style="font-size:11px;color:var(--mid);margin-top:6px">Select the target table first — column names are injected automatically (CSVs have no headers)</p>
+            <input type="file" id="file-input" accept=".csv">
+        </div>
+
+        <div id="preview-wrap" style="display:none;margin-top:20px">
+            <h3 id="preview-title"></h3>
+            <div style="overflow-x:auto;margin-bottom:14px">
+                <table><thead><tr id="prev-head"></tr></thead><tbody id="prev-body"></tbody></table>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+                <button class="btn" id="upload-btn">Upload to Database</button>
+                <button class="btn btn-ghost" onclick="clearIngest()">Clear</button>
+                <span id="row-count-hint" style="font-size:12px;color:var(--mid)"></span>
+            </div>
+            <div class="progress-wrap" id="progress-wrap" style="display:none">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+        </div>
+
+        <div id="ingest-msg"></div>
+
+        <div id="result-wrap" style="display:none;margin-top:20px">
+            <div class="card">
+                <div class="result-row"><span>Rows in file</span><span id="r-total" style="font-weight:700">0</span></div>
+                <div class="result-row"><span>Inserted (new)</span><span id="r-ok" class="num-ok">0</span></div>
+                <div class="result-row"><span>Skipped (exact duplicate)</span><span id="r-skip" style="color:var(--mid);font-weight:700">0</span></div>
+                <div class="result-row"><span>Conflicts (same ID, different data)</span><span id="r-conflict" class="num-err">0</span></div>
+                <div class="result-row"><span>Rejected (contract violations)</span><span id="r-rej" class="num-err">0</span></div>
+            </div>
+            <div id="conflict-wrap" style="display:none;margin-top:12px">
+                <div style="margin-bottom:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--red)">Conflict Details — same ID, data drift detected</div>
+                <div class="rejection-scroll" id="conflict-log"></div>
+            </div>
+            <div id="rejection-wrap" style="display:none;margin-top:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                    <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Rejection Details</span>
+                    <button class="btn btn-ghost btn-sm" onclick="downloadRejections()">Download CSV</button>
+                </div>
+                <div class="rejection-scroll" id="rejection-log"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ PIPELINE ═══ -->
+<div class="page" id="page-analytics">
+
+    <div class="section">
+        <h2>Pipeline Control</h2>
+        <div class="pipeline-topbar">
+            <span style="font-size:12px;color:var(--mid)">Trigger Airflow DAGs without opening the Airflow UI. Results appear in Metabase (Dashboard tab).</span>
+            <a href="http://localhost:8080" target="_blank" class="btn btn-ghost btn-sm">Open Airflow ↗</a>
+        </div>
+
+        <div id="pipeline-msg"></div>
+
+        <div class="dag-grid" id="dag-grid">
+            <div class="loader" style="grid-column:span 2">Loading DAG status…</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ CATALOG ═══ -->
+<div class="page" id="page-catalog">
+
+    <div class="section">
+        <h2>Medallion Pipeline Lineage</h2>
+        <div class="lineage-wrap"><span class="layer-header">INGEST PATHS</span>
+<span class="l-src">data/csv/departments.csv   </span><span class="l-arrow">──▶</span><span class="l-bronze"> [Bronze] data/bronze/departments/ingested_date=YYYY-MM-DD/part-0.parquet</span>
+<span class="l-src">data/csv/jobs.csv          </span><span class="l-arrow">──▶</span><span class="l-bronze"> [Bronze] data/bronze/jobs/ingested_date=YYYY-MM-DD/part-0.parquet</span>
+<span class="l-src">data/csv/hired_employees.csv</span><span class="l-arrow">─▶</span><span class="l-bronze"> [Bronze] data/bronze/hired_employees/ingested_date=YYYY-MM-DD/part-0.parquet</span>
+
+<span class="l-src">API POST /api/v1/ingest/departments   </span><span class="l-arrow">──▶</span><span class="l-bronze"> [Bronze] append Parquet  </span><span class="l-arrow">──▶</span><span class="l-silver"> raw.departments</span>
+<span class="l-src">API POST /api/v1/ingest/jobs          </span><span class="l-arrow">──▶</span><span class="l-bronze"> [Bronze] append Parquet  </span><span class="l-arrow">──▶</span><span class="l-silver"> raw.jobs</span>
+<span class="l-src">API POST /api/v1/ingest/hired_employees</span><span class="l-arrow">─▶</span><span class="l-bronze"> [Bronze] append Parquet  </span><span class="l-arrow">──▶</span><span class="l-silver"> raw.hired_employees</span>
+<span class="l-src">                                       </span>   (Pydantic validation · idempotency check · conflicts → raw.rejected_log)
+
+<span class="layer-header">AIRFLOW MEDALLION DAG  ·  globant_medallion_pipeline</span>
+<span class="l-src">land_csv_to_bronze          </span><span class="l-arrow">──▶</span><span class="l-bronze"> Bronze Parquet partitions  </span><span class="l-arrow">(append-only, partition = execution_date)</span>
+<span class="l-src">bronze_to_silver_departments</span><span class="l-arrow">──▶</span><span class="l-silver"> raw.departments            </span><span class="l-arrow">(pandas + psycopg2 · ON CONFLICT skip · drift → rejected_log)</span>
+<span class="l-src">bronze_to_silver_jobs       </span><span class="l-arrow">──▶</span><span class="l-silver"> raw.jobs                  </span><span class="l-arrow">(parallel with departments)</span>
+<span class="l-src">bronze_to_silver_hired_empl </span><span class="l-arrow">──▶</span><span class="l-silver"> raw.hired_employees        </span><span class="l-arrow">(after departments + jobs)</span>
+<span class="l-src">dbt_run_gold_marts          </span><span class="l-arrow">──▶</span><span class="l-gold"> analytics.*               </span><span class="l-arrow">(dbt table · drops + recreates · idempotent)</span>
+
+<span class="layer-header">DBT MODEL LINEAGE  ·  (staging = ephemeral CTEs, marts = tables)</span>
+<span class="l-silver">raw.departments      </span><span class="l-arrow">──▶</span><span class="l-dbt"> stg_departments (ephemeral)    </span><span class="l-arrow">─┐</span>
+<span class="l-silver">raw.jobs             </span><span class="l-arrow">──▶</span><span class="l-dbt"> stg_jobs (ephemeral)           </span><span class="l-arrow">─┼──▶</span><span class="l-gold"> analytics.mart_hires_by_quarter</span>
+<span class="l-silver">raw.hired_employees  </span><span class="l-arrow">──▶</span><span class="l-dbt"> stg_hired_employees (ephemeral)</span><span class="l-arrow">─┤</span>
+<span class="l-silver">                     </span>                                          <span class="l-arrow">─┘──▶</span><span class="l-gold"> analytics.mart_departments_above_mean</span></div>
+    </div>
+
+    <div class="section">
+        <h2>Table Explorer</h2>
+        <div class="table-scroll"><table>
+            <thead><tr>
+                <th>Layer</th><th>Schema · Table</th><th>Rows</th><th>Type</th><th>Key Columns</th>
+            </tr></thead>
+            <tbody id="catalog-tbody">
+                <tr><td colspan="5" class="loader">Loading…</td></tr>
+            </tbody>
+        </table></div>
+    </div>
+
+    <div class="section">
+        <h2>dbt Models</h2>
+        <div class="dbt-model-grid">
+            <div class="dbt-card">
+                <h4>stg_departments · stg_jobs · stg_hired_employees</h4>
+                <div class="mat">materialized: <strong>ephemeral</strong> (inlined as CTEs — no DB objects created)</div>
+                <code>source: raw.* → trim strings, parse datetime, extract hire_year + hire_quarter</code>
+            </div>
+            <div class="dbt-card">
+                <h4>mart_hires_by_quarter</h4>
+                <div class="mat">materialized: <strong>table</strong> in analytics schema · full replace on each run</div>
+                <code>GROUP BY department, job, hire_year → COUNT FILTER by quarter</code>
+            </div>
+            <div class="dbt-card">
+                <h4>mart_departments_above_mean</h4>
+                <div class="mat">materialized: <strong>table</strong> in analytics schema · full replace on each run</div>
+                <code>CTE dept_counts (2021) → WHERE hired > AVG(hired)</code>
+            </div>
+            <div class="dbt-card">
+                <h4>dbt tests</h4>
+                <div class="mat">35 data tests across all models and sources</div>
+                <code>unique · not_null · relationships (FK) on all source + model columns</code>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Schema Reference</h2>
+        <div class="grid-2">
+            <div class="card">
+                <h3><span class="tag tag-silver" style="font-size:11px;padding:2px 7px;margin-right:6px">SILVER</span>raw.departments</h3>
+                <table>
+                    <thead><tr><th>Column</th><th>Type</th><th>Constraint</th></tr></thead>
+                    <tbody>
+                        <tr><td>id</td><td>INTEGER</td><td>PRIMARY KEY</td></tr>
+                        <tr><td>department</td><td>VARCHAR(255)</td><td>NOT NULL</td></tr>
+                        <tr><td>_loaded_at</td><td>TIMESTAMP</td><td>DEFAULT NOW()</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3><span class="tag tag-silver" style="font-size:11px;padding:2px 7px;margin-right:6px">SILVER</span>raw.jobs</h3>
+                <table>
+                    <thead><tr><th>Column</th><th>Type</th><th>Constraint</th></tr></thead>
+                    <tbody>
+                        <tr><td>id</td><td>INTEGER</td><td>PRIMARY KEY</td></tr>
+                        <tr><td>job</td><td>VARCHAR(255)</td><td>NOT NULL</td></tr>
+                        <tr><td>_loaded_at</td><td>TIMESTAMP</td><td>DEFAULT NOW()</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3><span class="tag tag-silver" style="font-size:11px;padding:2px 7px;margin-right:6px">SILVER</span>raw.hired_employees</h3>
+                <table>
+                    <thead><tr><th>Column</th><th>Type</th><th>Constraint</th></tr></thead>
+                    <tbody>
+                        <tr><td>id</td><td>INTEGER</td><td>PRIMARY KEY</td></tr>
+                        <tr><td>name</td><td>VARCHAR(255)</td><td>NOT NULL</td></tr>
+                        <tr><td>datetime</td><td>TIMESTAMP</td><td>NOT NULL · ISO 8601</td></tr>
+                        <tr><td>department_id</td><td>INTEGER</td><td>FK → raw.departments</td></tr>
+                        <tr><td>job_id</td><td>INTEGER</td><td>FK → raw.jobs</td></tr>
+                        <tr><td>_loaded_at</td><td>TIMESTAMP</td><td>DEFAULT NOW()</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3><span class="tag tag-audit" style="font-size:11px;padding:2px 7px;margin-right:6px">AUDIT</span>raw.rejected_log</h3>
+                <table>
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td>id</td><td>SERIAL</td><td>auto</td></tr>
+                        <tr><td>table_name</td><td>VARCHAR(50)</td><td></td></tr>
+                        <tr><td>raw_row</td><td>JSONB</td><td>original row as JSON</td></tr>
+                        <tr><td>reason</td><td>TEXT</td><td>validation msg or CONFLICT diff</td></tr>
+                        <tr><td>rejected_at</td><td>TIMESTAMP</td><td>DEFAULT NOW()</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3><span class="tag tag-gold" style="font-size:11px;padding:2px 7px;margin-right:6px">GOLD</span>analytics.mart_hires_by_quarter</h3>
+                <table>
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td>department</td><td>VARCHAR(255)</td><td>from raw.departments</td></tr>
+                        <tr><td>job</td><td>VARCHAR(255)</td><td>from raw.jobs</td></tr>
+                        <tr><td>hire_year</td><td>INTEGER</td><td>GROUP BY year</td></tr>
+                        <tr><td>q1</td><td>INTEGER</td><td>hires in Q1 of hire_year</td></tr>
+                        <tr><td>q2</td><td>INTEGER</td><td>hires in Q2 of hire_year</td></tr>
+                        <tr><td>q3</td><td>INTEGER</td><td>hires in Q3 of hire_year</td></tr>
+                        <tr><td>q4</td><td>INTEGER</td><td>hires in Q4 of hire_year</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3><span class="tag tag-gold" style="font-size:11px;padding:2px 7px;margin-right:6px">GOLD</span>analytics.mart_departments_above_mean</h3>
+                <table>
+                    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td>id</td><td>INTEGER</td><td>department id</td></tr>
+                        <tr><td>department</td><td>VARCHAR(255)</td><td></td></tr>
+                        <tr><td>hired</td><td>INTEGER</td><td>2021 hires · filtered &gt; mean</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ BACKUP ════ -->
+<div class="page" id="page-backup">
+
+    <div class="section">
+        <div class="backup-grid">
+            <div class="backup-card">
+                <h4>departments</h4>
+                <div class="actions">
+                    <button class="btn btn-sm" onclick="doBackup('departments')">Backup → AVRO</button>
+                    <button class="btn btn-ghost btn-sm btn-red" onclick="doRestore('departments')">Restore from AVRO</button>
+                </div>
+            </div>
+            <div class="backup-card">
+                <h4>jobs</h4>
+                <div class="actions">
+                    <button class="btn btn-sm" onclick="doBackup('jobs')">Backup → AVRO</button>
+                    <button class="btn btn-ghost btn-sm btn-red" onclick="doRestore('jobs')">Restore from AVRO</button>
+                </div>
+            </div>
+            <div class="backup-card">
+                <h4>hired_employees</h4>
+                <div class="actions">
+                    <button class="btn btn-sm" onclick="doBackup('hired_employees')">Backup → AVRO</button>
+                    <button class="btn btn-ghost btn-sm btn-red" onclick="doRestore('hired_employees')">Restore from AVRO</button>
+                </div>
+            </div>
+        </div>
+        <div style="margin-bottom:10px;font-size:12px;color:var(--mid)">
+            ⚠ Restore <strong>truncates</strong> the table and reloads from the latest AVRO backup. Restore hired_employees last (FK order).
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Operation Log</h2>
+        <div class="op-log" id="op-log">
+            <span class="op-info">No operations yet.</span>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Danger Zone</h2>
+        <div class="danger-zone">
+            <h3>Full Reset</h3>
+            <p>
+                Wipes <strong>all ingested data</strong> from PostgreSQL (raw &amp; analytics schemas),
+                deletes all Bronze Parquet files, and clears every Airflow run history.<br>
+                Use this to restart the challenge from scratch. Source CSV files are untouched.
+            </p>
+            <button class="btn btn-red" onclick="doReset()">Reset Everything</button>
+            <div class="reset-result" id="reset-result"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ DASHBOARD ═══ -->
+<div class="page" id="page-dashboard">
+    <div class="section">
+        <h2>Hiring Analytics Dashboard</h2>
+        <div class="dash-toolbar">
+            <button class="btn btn-sm btn-ghost" onclick="loadDashboard()">Reload</button>
+            <a id="dash-direct-link" href="#" target="_blank" style="display:none">Open in Metabase ↗</a>
+            <span id="dash-status" class="loader">Loading…</span>
+        </div>
+        <div id="dash-msg"></div>
+        <div class="dash-wrap" id="dash-wrap" style="display:none">
+            <iframe id="dash-iframe" src="" allowfullscreen></iframe>
+        </div>
+    </div>
+</div>
+
+</main>
+
+<script>
+// ─────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────
+let parsedRows = [];
+let rejectedRows = [];
+
+const TABLE_COLS = {
+    departments:     ['id', 'department'],
+    jobs:            ['id', 'job'],
+    hired_employees: ['id', 'name', 'datetime', 'department_id', 'job_id']
+};
+
+const INT_COLS = new Set(['id', 'department_id', 'job_id']);
+
+// ─────────────────────────────────────────────
+// API Key
+// ─────────────────────────────────────────────
+function getApiKey() { return localStorage.getItem('globant_api_key') || ''; }
+
+function saveApiKey() {
+    const val = document.getElementById('api-key-input').value.trim();
+    if (!val) return;
+    localStorage.setItem('globant_api_key', val);
+    document.getElementById('key-status').textContent = 'Key saved ✓';
+    document.getElementById('api-key-input').value = '';
+}
+
+function initApiKey() {
+    const saved = getApiKey();
+    document.getElementById('key-status').textContent = saved ? 'Key saved ✓' : 'API key not set';
+}
+
+// ─────────────────────────────────────────────
+// Tabs
+// ─────────────────────────────────────────────
+function switchTab(name, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('page-' + name).classList.add('active');
+    if (name === 'analytics') loadPipeline();
+    if (name === 'catalog') loadCatalog();
+    if (name === 'dashboard') loadDashboard();
+}
+
+// ─────────────────────────────────────────────
+// Status polling
+// ─────────────────────────────────────────────
+async function fetchStatus() {
+    try {
+        const r = await fetch('/api/v1/status');
+        if (!r.ok) return;
+        const d = await r.json();
+        document.getElementById('st-dept').textContent = fmt(d.departments);
+        document.getElementById('st-jobs').textContent = fmt(d.jobs);
+        document.getElementById('st-emp').textContent  = fmt(d.hired_employees);
+        document.getElementById('st-rej').textContent  = fmt(d.rejected_log);
+    } catch (_) {}
+}
+function fmt(n) { return n != null ? Number(n).toLocaleString() : '—'; }
+fetchStatus();
+setInterval(fetchStatus, 6000);
+
+// ─────────────────────────────────────────────
+// Table column hints
+// ─────────────────────────────────────────────
+document.getElementById('table-select').addEventListener('change', updateColHint);
+function updateColHint() {
+    const t = document.getElementById('table-select').value;
+    document.getElementById('expected-cols').textContent = 'Expected columns: ' + TABLE_COLS[t].join(', ');
+}
+updateColHint();
+
+// ─────────────────────────────────────────────
+// Drag & drop / file input
+// ─────────────────────────────────────────────
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e => {
+    e.preventDefault(); dropzone.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+    document.getElementById('drop-text').innerHTML = `<strong>${file.name}</strong> — parsing…`;
+    const table = document.getElementById('table-select').value;
+    const cols = TABLE_COLS[table];
+
+    Papa.parse(file, {
+        header: false,          // CSVs have no header row — we inject column names manually
+        skipEmptyLines: true,
+        dynamicTyping: false,   // keep as strings; we sanitize manually
+        complete: res => {
+            // Map each row array → object using known column names for the selected table
+            const objects = res.data.map(arr => {
+                const obj = {};
+                cols.forEach((col, i) => { obj[col] = arr[i] !== undefined ? arr[i] : null; });
+                return obj;
+            });
+            parsedRows = sanitizeRows(objects, table);
+            renderPreview(parsedRows, file.name);
+        },
+        error: err => showMsg('ingest-msg', 'error', 'CSV parse error: ' + err.message)
+    });
+}
+
+// Sanitize: cast int cols, strip _loaded_at, convert empty strings to null
+function sanitizeRows(rows, table) {
+    return rows.map(row => {
+        const out = {};
+        for (const [k, v] of Object.entries(row)) {
+            if (k === '_loaded_at') continue;           // strip DB metadata column
+            if (v === '' || v === null || v === undefined) {
+                out[k] = null;
+            } else if (INT_COLS.has(k)) {
+                const n = parseFloat(v);
+                out[k] = isNaN(n) ? null : Math.round(n); // "5.0" → 5
+            } else {
+                out[k] = String(v).trim() || null;
+            }
+        }
+        return out;
+    });
+}
+
+function renderPreview(rows, filename) {
+    if (!rows.length) { showMsg('ingest-msg', 'error', 'File is empty.'); return; }
+    const headers = Object.keys(rows[0]);
+
+    const head = document.getElementById('prev-head');
+    head.innerHTML = '';
+    headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; head.appendChild(th); });
+
+    const body = document.getElementById('prev-body');
+    body.innerHTML = '';
+    rows.slice(0, 5).forEach(row => {
+        const tr = document.createElement('tr');
+        headers.forEach(h => {
+            const td = document.createElement('td');
+            td.textContent = row[h] !== null ? row[h] : '∅ NULL';
+            if (row[h] === null) td.style.color = 'var(--mid)';
+            tr.appendChild(td);
+        });
+        body.appendChild(tr);
+    });
+
+    document.getElementById('preview-title').textContent =
+        `Preview — ${filename} (${rows.length.toLocaleString()} rows, showing first 5)`;
+    document.getElementById('row-count-hint').textContent = rows.length.toLocaleString() + ' rows will be sent';
+    document.getElementById('preview-wrap').style.display = 'block';
+    document.getElementById('result-wrap').style.display = 'none';
+    document.getElementById('ingest-msg').innerHTML = '';
+    drop_text_default();
+}
+
+function drop_text_default() {
+    document.getElementById('drop-text').innerHTML = '<strong>Drop CSV here</strong> or click to browse';
+}
+
+// Resets only the file selection + preview — keeps results visible after upload
+function resetFileSelection() {
+    fileInput.value = '';
+    parsedRows = [];
+    document.getElementById('preview-wrap').style.display = 'none';
+    drop_text_default();
+}
+
+// Full wipe (Clear button) — also hides results
+function clearIngest() {
+    resetFileSelection();
+    document.getElementById('result-wrap').style.display = 'none';
+    document.getElementById('ingest-msg').innerHTML = '';
+}
+
+// ─────────────────────────────────────────────
+// Upload
+// ─────────────────────────────────────────────
+document.getElementById('upload-btn').addEventListener('click', runUpload);
+
+async function runUpload() {
+    if (!parsedRows.length) return;
+    const key = getApiKey();
+    if (!key) { showMsg('ingest-msg', 'error', 'Save your API key first (top-right).'); return; }
+
+    const table = document.getElementById('table-select').value;
+    const btn = document.getElementById('upload-btn');
+    btn.disabled = true;
+    document.getElementById('preview-wrap').style.display = 'none';
+    document.getElementById('progress-wrap').style.display = 'block';
+    document.getElementById('ingest-msg').innerHTML = '';
+
+    let inserted = 0, skipped = 0, conflicts = 0, rejected = 0;
+    rejectedRows = [];
+    const errors = [], conflictDetails = [];
+    const CHUNK = 1000;
+    const total = parsedRows.length;
+
+    for (let i = 0; i < total; i += CHUNK) {
+        const chunk = parsedRows.slice(i, i + CHUNK);
+        const pct = Math.round(((i + chunk.length) / total) * 100);
+        document.getElementById('progress-bar').style.width = pct + '%';
+
+        try {
+            const res = await fetch(`/api/v1/ingest/${table}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
+                body: JSON.stringify({ rows: chunk })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({ detail: res.statusText }));
+                throw new Error(err.detail || res.statusText);
+            }
+            const d = await res.json();
+            inserted  += d.inserted  || 0;
+            skipped   += d.skipped   || 0;
+            conflicts += d.conflicts || 0;
+            rejected  += d.rejected  || 0;
+            if (d.errors)          d.errors.forEach(e => { errors.push(e); rejectedRows.push(e.row); });
+            if (d.conflict_details) d.conflict_details.forEach(c => conflictDetails.push(c));
+        } catch (err) {
+            showMsg('ingest-msg', 'error', `Batch ${Math.floor(i/CHUNK)+1} failed: ${err.message}`);
+            btn.disabled = false;
+            document.getElementById('progress-wrap').style.display = 'none';
+            document.getElementById('preview-wrap').style.display = 'block';
+            return;
+        }
+    }
+
+    document.getElementById('progress-wrap').style.display = 'none';
+    btn.disabled = false;
+    resetFileSelection();
+    showResults(total, inserted, skipped, conflicts, rejected, errors, conflictDetails);
+    fetchStatus();
+}
+
+function showResults(total, inserted, skipped, conflicts, rejected, errors, conflictDetails) {
+    document.getElementById('r-total').textContent    = total.toLocaleString();
+    document.getElementById('r-ok').textContent       = inserted.toLocaleString();
+    document.getElementById('r-skip').textContent     = skipped.toLocaleString();
+    document.getElementById('r-conflict').textContent = conflicts.toLocaleString();
+    document.getElementById('r-rej').textContent      = rejected.toLocaleString();
+
+    // Conflict details
+    const conflictWrap = document.getElementById('conflict-wrap');
+    if (conflictDetails.length > 0) {
+        document.getElementById('conflict-log').innerHTML = conflictDetails.map(c => {
+            const diffs = Object.entries(c.diff).map(([k, v]) =>
+                `  ${k}: <span style="color:#630">${JSON.stringify(v.current)}</span> → <span style="color:var(--red)">${JSON.stringify(v.incoming)}</span>`
+            ).join('<br>');
+            return `<span style="color:var(--red)">[CONFLICT id=${c.id}]</span> changed: ${c.changed_fields.join(', ')}<br>${diffs}`;
+        }).join('<br><br>');
+        conflictWrap.style.display = 'block';
+    } else {
+        conflictWrap.style.display = 'none';
+    }
+
+    // Rejection details
+    const rejWrap = document.getElementById('rejection-wrap');
+    if (errors.length > 0) {
+        document.getElementById('rejection-log').innerHTML = errors.map(e =>
+            `<span style="color:var(--red)">[REJECT]</span> ${JSON.stringify(e.row)}<br><span style="color:var(--mid);padding-left:60px">↳ ${e.reason}</span>`
+        ).join('<br>');
+        rejWrap.style.display = 'block';
+    } else {
+        rejWrap.style.display = 'none';
+    }
+
+    document.getElementById('result-wrap').style.display = 'block';
+
+    if (conflicts > 0)
+        showMsg('ingest-msg', 'error', `${inserted} inserted · ${skipped} skipped · ${conflicts} conflicts (data drift detected) · ${rejected} rejected`);
+    else if (rejected > 0)
+        showMsg('ingest-msg', 'info', `${inserted.toLocaleString()} inserted · ${skipped.toLocaleString()} skipped · ${rejected.toLocaleString()} rejected`);
+    else if (skipped > 0 && inserted === 0)
+        showMsg('ingest-msg', 'ok', `All ${skipped.toLocaleString()} rows already exist — nothing new to insert.`);
+    else
+        showMsg('ingest-msg', 'ok', `✓ ${inserted.toLocaleString()} rows inserted · ${skipped.toLocaleString()} skipped (already existed)`);
+}
+
+function downloadRejections() {
+    if (!rejectedRows.length) return;
+    const csv = Papa.unparse(rejectedRows);
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'rejected_rows.csv';
+    a.click();
+}
+
+// ─────────────────────────────────────────────
+// Pipeline (DAG trigger)
+// ─────────────────────────────────────────────
+const DAG_META = {
+    'globant_medallion_pipeline': {
+        label: 'Full Medallion Pipeline',
+        desc:  'Bronze (Parquet) → Silver (raw.*) → Gold (dbt analytics.*)',
+    },
+    'globant_csv_ingestion_dag': {
+        label: 'CSV Ingestion',
+        desc:  'Validates CSV files in data/csv/ and lands them into Bronze layer',
+    },
+};
+
+async function loadPipeline() {
+    const grid = document.getElementById('dag-grid');
+    grid.innerHTML = '<div class="loader" style="grid-column:span 2">Loading DAG status…</div>';
+    document.getElementById('pipeline-msg').innerHTML = '';
+
+    try {
+        const r = await fetch('/api/v1/pipeline/dags');
+        if (!r.ok) throw new Error('Cannot reach pipeline API');
+        const { dags } = await r.json();
+        const dagMap = Object.fromEntries(dags.map(d => [d.dag_id, d]));
+        grid.innerHTML = Object.keys(DAG_META).map(id => renderDagCard(id, dagMap[id])).join('');
+        Object.keys(DAG_META).forEach(id => refreshRuns(id));
+    } catch (e) {
+        grid.innerHTML = `<div class="msg msg-err" style="grid-column:span 2">
+            Cannot connect to Airflow — make sure the stack is running.<br>
+            <span style="font-size:12px;color:var(--mid)">${e.message}</span>
+        </div>`;
+    }
+}
+
+function renderDagCard(id, dag) {
+    const m = DAG_META[id];
+    return `
+    <div class="dag-card" id="dag-${id}">
+        <div class="dag-header">
+            <div>
+                <div class="dag-name">${m.label}</div>
+                <div class="dag-desc">${m.desc}</div>
+            </div>
+            <span class="dag-status-badge badge-none" id="badge-${id}">—</span>
+        </div>
+        <div class="dag-meta" id="meta-${id}">Loading…</div>
+        <div class="dag-history" id="hist-${id}"></div>
+        <div class="dag-actions">
+            <button class="btn btn-sm" id="btn-${id}" onclick="triggerDag('${id}')">▶ Trigger</button>
+            <a href="http://localhost:8080/dags/${id}/grid" target="_blank" class="btn btn-ghost btn-sm">Airflow ↗</a>
+        </div>
+    </div>`;
+}
+
+async function refreshRuns(dagId) {
+    try {
+        const r = await fetch(`/api/v1/pipeline/dags/${dagId}/runs?limit=5`);
+        if (!r.ok) return;
+        const { dag_runs } = await r.json();
+
+        const badge = document.getElementById(`badge-${dagId}`);
+        const metaEl = document.getElementById(`meta-${dagId}`);
+        const histEl = document.getElementById(`hist-${dagId}`);
+        const btn    = document.getElementById(`btn-${dagId}`);
+        if (!badge) return;
+
+        if (!dag_runs.length) {
+            badge.textContent = 'Never run'; badge.className = 'dag-status-badge badge-none';
+            metaEl.textContent = 'No runs yet — click Trigger to start';
+            histEl.innerHTML = ''; if (btn) { btn.disabled = false; btn.textContent = '▶ Trigger'; }
+            return;
+        }
+
+        const latest = dag_runs[0];
+        const state  = latest.state || 'none';
+        badge.textContent = state; badge.className = `dag-status-badge badge-${state}`;
+
+        const started  = latest.start_date ? new Date(latest.start_date).toLocaleString() : '—';
+        const startedD = latest.start_date ? new Date(latest.start_date) : null;
+        const endedD   = latest.end_date   ? new Date(latest.end_date)   : null;
+        const dur = (endedD && startedD) ? `${Math.round((endedD - startedD) / 1000)}s` :
+                    (state === 'running' || state === 'queued') ? 'in progress' : '';
+        metaEl.textContent = `Last run: ${started}${dur ? '  ·  ' + dur : ''}`;
+
+        histEl.innerHTML = dag_runs.map(run =>
+            `<div class="dag-dot ${run.state}" title="${run.state} — ${run.start_date ? new Date(run.start_date).toLocaleTimeString() : '?'}"></div>`
+        ).join('');
+
+        if (btn) {
+            const busy = state === 'running' || state === 'queued';
+            btn.disabled = busy;
+            btn.textContent = state === 'running' ? '⏳ Running…' : state === 'queued' ? '⏳ Queued…' : '▶ Trigger';
+        }
+
+        if (state === 'running' || state === 'queued') {
+            setTimeout(() => refreshRuns(dagId), 4000);
+        }
+    } catch (_) {}
+}
+
+async function triggerDag(dagId) {
+    const btn = document.getElementById(`btn-${dagId}`);
+    btn.disabled = true; btn.textContent = 'Triggering…';
+    document.getElementById('pipeline-msg').innerHTML = '';
+    try {
+        const r = await fetch(`/api/v1/pipeline/dags/${dagId}/trigger`, { method: 'POST' });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.statusText);
+        showMsg('pipeline-msg', 'ok', `✓ <strong>${DAG_META[dagId]?.label || dagId}</strong> triggered — run ID: ${d.dag_run_id}`);
+        btn.textContent = '⏳ Running…';
+        setTimeout(() => refreshRuns(dagId), 2000);
+    } catch (e) {
+        btn.disabled = false; btn.textContent = '▶ Trigger';
+        showMsg('pipeline-msg', 'error', `Failed to trigger: ${e.message}`);
+    }
+}
+
+// keep old function name so switchTab still works
+async function computeAndLoad() {
+    // legacy stub — no longer used
+    const key = getApiKey();
+    if (!key) { showMsg('analytics-msg', 'error', 'Save your API key first (top-right).'); return; }
+
+    const btn = document.getElementById('compute-btn');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = 'Computing…';
+    showMsg('analytics-msg', 'info', 'Running analytics computation on raw tables…');
+    document.getElementById('analytics-summary').style.display = 'none';
+
+    try {
+        const r = await fetch('/api/v1/metrics/refresh', {
+            method: 'POST',
+            headers: { 'X-API-Key': key }
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.statusText);
+
+        document.getElementById('sum-source').textContent = d.source_rows_total.toLocaleString();
+        document.getElementById('sum-mart1').textContent  = d.mart_hires_by_quarter_rows.toLocaleString();
+        document.getElementById('sum-mart2').textContent  = d.mart_departments_above_mean_rows.toLocaleString();
+        document.getElementById('sum-mean').textContent   = d.mean_hires_per_department_2021.toFixed(1);
+        document.getElementById('analytics-summary').style.display = 'block';
+
+        showMsg('analytics-msg', 'ok', `✓ Analytics marts refreshed — ${d.mart_hires_by_quarter_rows} dept×job rows · ${d.mart_departments_above_mean_rows} departments above mean`);
+        await loadAnalytics();
+    } catch (e) {
+        showMsg('analytics-msg', 'error', `Computation failed: ${e.message}`);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Compute Analytics';
+    }
+}
+
+async function loadAnalytics() {
+    document.getElementById('analytics-msg').innerHTML = '';
+    document.getElementById('quarter-body').innerHTML =
+        '<tr><td colspan="8" class="loader">Loading…</td></tr>';
+    document.getElementById('mean-chart').innerHTML =
+        '<div class="loader">Loading…</div>';
+
+    const [qRes, mRes] = await Promise.all([
+        fetch('/api/v1/metrics/hires-by-quarter'),
+        fetch('/api/v1/metrics/departments-above-mean')
+    ]);
+
+    if (!qRes.ok || !mRes.ok) {
+        showMsg('analytics-msg', 'error', 'Could not load analytics. Make sure data is ingested and the dbt gold job has run.');
+        return;
+    }
+
+    const qData = await qRes.json();
+    const mData = await mRes.json();
+
+    // Quarter table — now includes hire_year
+    const tbody = document.getElementById('quarter-body');
+    if (!qData.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--mid);padding:20px">No data — run the Airflow medallion pipeline first</td></tr>';
+    } else {
+        tbody.innerHTML = qData.map(r => {
+            const total = (r.q1||0)+(r.q2||0)+(r.q3||0)+(r.q4||0);
+            const q = v => `<td style="text-align:center">${v||0}</td>`;
+            return `<tr><td>${r.department}</td><td>${r.job}</td><td style="text-align:center;font-weight:600">${r.hire_year}</td>${q(r.q1)}${q(r.q2)}${q(r.q3)}${q(r.q4)}<td style="text-align:center;font-weight:700">${total}</td></tr>`;
+        }).join('');
+    }
+
+    // Bar chart for departments above mean
+    const chart = document.getElementById('mean-chart');
+    if (!mData.length) {
+        chart.innerHTML = '<div style="text-align:center;color:var(--mid);padding:20px">No data — run the analytics job first</div>';
+    } else {
+        const maxVal = Math.max(...mData.map(d => d.hired));
+        chart.innerHTML = mData.map(d => {
+            const pct = Math.round((d.hired / maxVal) * 100);
+            return `
+            <div class="bar-row">
+                <div class="bar-label" title="${d.department}">${d.department}</div>
+                <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+                <div class="bar-val">${d.hired}</div>
+            </div>`;
+        }).join('');
+    }
+
+    document.getElementById('analytics-refresh-time').textContent =
+        'Last refreshed: ' + new Date().toLocaleTimeString();
+}
+
+// ─────────────────────────────────────────────
+// Catalog
+// ─────────────────────────────────────────────
+async function loadCatalog() {
+    const tbody = document.getElementById('catalog-tbody');
+    tbody.innerHTML = '<tr><td colspan="5" class="loader">Loading…</td></tr>';
+
+    const rows = [];
+
+    // Silver layer — live counts from status API
+    try {
+        const r = await fetch('/api/v1/status');
+        if (r.ok) {
+            const s = await r.json();
+            rows.push({ layer: 'Silver', schema: 'raw', table: 'departments',     cnt: s.departments,    type: 'silver', cols: 'id · department · _loaded_at' });
+            rows.push({ layer: 'Silver', schema: 'raw', table: 'jobs',            cnt: s.jobs,           type: 'silver', cols: 'id · job · _loaded_at' });
+            rows.push({ layer: 'Silver', schema: 'raw', table: 'hired_employees', cnt: s.hired_employees,type: 'silver', cols: 'id · name · datetime · department_id · job_id' });
+            rows.push({ layer: 'Audit',  schema: 'raw', table: 'rejected_log',    cnt: s.rejected_log,   type: 'audit',  cols: 'id · table_name · raw_row (jsonb) · reason · rejected_at' });
+        }
+    } catch (_) {}
+
+    // Gold layer — analytics marts
+    try {
+        const [q, m] = await Promise.all([
+            fetch('/api/v1/metrics/hires-by-quarter'),
+            fetch('/api/v1/metrics/departments-above-mean')
+        ]);
+        const qd = q.ok ? await q.json() : [];
+        const md = m.ok ? await m.json() : [];
+        rows.push({ layer: 'Gold (dbt)', schema: 'analytics', table: 'mart_hires_by_quarter',      cnt: qd.length, type: 'gold', cols: 'department · job · hire_year · q1 · q2 · q3 · q4' });
+        rows.push({ layer: 'Gold (dbt)', schema: 'analytics', table: 'mart_departments_above_mean', cnt: md.length, type: 'gold', cols: 'id · department · hired' });
+    } catch (_) {}
+
+    if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--mid);padding:16px">Could not reach API</td></tr>';
+        return;
+    }
+
+    const layerTag = t => {
+        const map = { silver: 'tag-silver', gold: 'tag-gold', audit: 'tag-audit' };
+        return `<span class="tag ${map[t] || 'tag-ok'}" style="font-size:11px;padding:2px 7px">${t.toUpperCase()}</span>`;
+    };
+
+    tbody.innerHTML = rows.map(r => `
+        <tr>
+            <td>${layerTag(r.type)}</td>
+            <td style="font-weight:600;font-family:monospace">${r.schema}.<strong>${r.table}</strong></td>
+            <td style="font-weight:700">${r.cnt != null ? Number(r.cnt).toLocaleString() : '—'}</td>
+            <td style="font-size:12px;color:var(--mid)">${r.layer}</td>
+            <td style="font-family:monospace;font-size:11px;color:var(--mid)">${r.cols}</td>
+        </tr>`).join('');
+}
+
+// ─────────────────────────────────────────────
+// Backup / Restore
+// ─────────────────────────────────────────────
+function logOp(cls, msg) {
+    const log = document.getElementById('op-log');
+    const ts = new Date().toLocaleTimeString();
+    const empty = log.querySelector('.op-info');
+    if (empty && empty.textContent === 'No operations yet.') log.innerHTML = '';
+    log.innerHTML += `<span class="${cls}">[${ts}] ${msg}</span>\n`;
+    log.scrollTop = log.scrollHeight;
+}
+
+async function doBackup(table) {
+    const key = getApiKey();
+    if (!key) { logOp('op-err', 'API key not set.'); return; }
+    logOp('op-info', `Starting backup of ${table}…`);
+    try {
+        const r = await fetch(`/api/v1/backup/${table}`, {
+            method: 'POST', headers: { 'X-API-Key': key }
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.statusText);
+        logOp('op-ok', `✓ ${table} backed up → ${d.backup_file}  (${d.rows_backed_up.toLocaleString()} rows)`);
+    } catch (e) {
+        logOp('op-err', `✗ Backup failed: ${e.message}`);
+    }
+}
+
+async function doRestore(table) {
+    if (!confirm(`Restore ${table}?\n\nThis will TRUNCATE the table and reload from the latest AVRO backup.`)) return;
+    const key = getApiKey();
+    if (!key) { logOp('op-err', 'API key not set.'); return; }
+    logOp('op-info', `Restoring ${table}…`);
+    try {
+        const r = await fetch(`/api/v1/restore/${table}`, {
+            method: 'POST', headers: { 'X-API-Key': key }
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.statusText);
+        logOp('op-ok', `✓ ${table} restored from ${d.restored_from}  (${d.rows_restored.toLocaleString()} rows)`);
+        fetchStatus();
+    } catch (e) {
+        logOp('op-err', `✗ Restore failed: ${e.message}`);
+    }
+}
+
+// ─────────────────────────────────────────────
+// Dashboard embed
+// ─────────────────────────────────────────────
+let _dashLoaded = false;
+
+async function loadDashboard() {
+    const status  = document.getElementById('dash-status');
+    const wrap    = document.getElementById('dash-wrap');
+    const iframe  = document.getElementById('dash-iframe');
+    const link    = document.getElementById('dash-direct-link');
+    const msgBox  = document.getElementById('dash-msg');
+
+    status.textContent = 'Connecting to Metabase…';
+    msgBox.innerHTML   = '';
+
+    try {
+        const r = await fetch('/api/v1/dashboard-embed');
+        if (!r.ok) {
+            const err = await r.json().catch(() => ({ detail: r.statusText }));
+            throw new Error(err.detail || r.statusText);
+        }
+        const d = await r.json();
+
+        // Browser-visible Metabase URL uses same hostname but port 3000
+        const mbHost   = `${window.location.protocol}//${window.location.hostname}:3000`;
+        const embedUrl = `${mbHost}/public/dashboard/${d.uuid}`;
+        const directUrl = `${mbHost}/dashboard/${d.dashboard_id}`;
+
+        iframe.src = embedUrl;
+        link.href  = directUrl;
+        link.style.display = '';
+        wrap.style.display = '';
+        status.textContent = `Dashboard loaded — "${d.dashboard_name}"`;
+        _dashLoaded = true;
+    } catch (e) {
+        wrap.style.display = 'none';
+        link.style.display = 'none';
+        status.textContent = '';
+        msgBox.innerHTML = `<div class="msg msg-err">
+            <strong>Could not load dashboard:</strong> ${e.message}<br>
+            <span style="font-size:12px;color:var(--mid)">Make sure Metabase is running and the ingestion pipeline has been executed at least once.</span>
+        </div>`;
+    }
+}
+
+// ─────────────────────────────────────────────
+// Reset
+// ─────────────────────────────────────────────
+async function doReset() {
+    if (!confirm(
+        'FULL RESET\n\n' +
+        'This will:\n' +
+        '  • Truncate all PostgreSQL tables (raw.* and analytics.*)\n' +
+        '  • Delete all Bronze Parquet files\n' +
+        '  • Clear all Airflow run history\n\n' +
+        'Source CSV files are NOT deleted.\n\n' +
+        'Are you sure?'
+    )) return;
+
+    const key = getApiKey();
+    if (!key) { alert('Save your API key first (top-right).'); return; }
+
+    const btn = document.querySelector('.danger-zone .btn-red');
+    const box = document.getElementById('reset-result');
+    btn.disabled = true; btn.textContent = 'Resetting…';
+    box.style.display = 'none';
+
+    try {
+        const r = await fetch('/api/v1/admin/reset', {
+            method: 'POST', headers: { 'X-API-Key': key }
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.statusText);
+
+        const pg  = d.postgres?.truncated  || [];
+        const bz  = d.bronze?.bronze_cleared || [];
+        const af  = d.airflow?.airflow_runs_deleted ?? '?';
+        const errs = d.airflow?.errors || [];
+
+        box.innerHTML =
+            pg.map(t  => `<span style="color:var(--red)">✓ TRUNCATED  ${t}</span>`).join('\n') + '\n' +
+            bz.map(f  => `<span style="color:#7a4500">✓ DELETED    bronze/${f}</span>`).join('\n') +
+            (bz.length ? '\n' : '') +
+            `<span style="color:var(--mid)">✓ AIRFLOW    ${af} run(s) cleared</span>` +
+            (errs.length ? '\n' + errs.map(e => `<span style="color:var(--red)">⚠ ${e}</span>`).join('\n') : '');
+        box.style.display = 'block';
+
+        btn.textContent = 'Reset Complete ✓';
+        fetchStatus();
+    } catch (e) {
+        box.innerHTML = `<span style="color:var(--red)">✗ ${e.message}</span>`;
+        box.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Reset Everything';
+    }
+}
+
+// ─────────────────────────────────────────────
+// Utility
+// ─────────────────────────────────────────────
+function showMsg(id, type, text) {
+    const cls = type === 'ok' ? 'msg-ok' : type === 'error' ? 'msg-err' : 'msg-info';
+    document.getElementById(id).innerHTML = `<div class="msg ${cls}">${text}</div>`;
+}
+
+// Init
+initApiKey();
+</script>
+
+<footer class="footer">
+    <div class="footer-left">Nicolás Balaguera — Globant Data Challenge</div>
+    <div class="footer-links">
+        <a href="https://nicobalaguera.com" target="_blank">nicobalaguera.com</a>
+        <a href="https://www.linkedin.com/in/nicolas-alejandro-balaguera-gonzalez/" target="_blank">LinkedIn</a>
+        <span class="soon" title="Repository not yet published">GitHub (coming soon)</span>
+    </div>
+</footer>
+</body>
+</html>

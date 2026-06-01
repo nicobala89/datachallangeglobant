@@ -20,8 +20,8 @@ from catalog.api.models import (
 
 # FastAPI app
 app = FastAPI(
-    title="Gorigami Data Catalog API",
-    description="Data discovery, metadata management, and governance API",
+    title="Globant Data Platform API",
+    description="Data ingestion, pipeline control, analytics, and governance API",
     version="1.0.0"
 )
 
@@ -34,22 +34,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.responses import HTMLResponse
+from catalog.api.routes.ingest import router as ingest_router
+from catalog.api.routes.backup import router as backup_router
+from catalog.api.routes.restore import router as restore_router
+from catalog.api.routes.metrics import router as metrics_router
+from catalog.api.routes.dashboard import router as dashboard_router
+from catalog.api.routes.airflow_proxy import router as pipeline_router
+from catalog.api.routes.admin import router as admin_router
 
-# Database connection
-def get_db():
-    """Get database connection"""
-    conn = psycopg2.connect(
-        host=os.getenv('POSTGRES_HOST', 'localhost'),
-        port=os.getenv('POSTGRES_PORT', 5432),
-        database=os.getenv('POSTGRES_DB', 'gorigami_analytics'),
-        user=os.getenv('POSTGRES_USER', 'gorigami'),
-        password=os.getenv('POSTGRES_PASSWORD', 'gorigami_password'),
-        cursor_factory=RealDictCursor
-    )
-    try:
-        yield conn
-    finally:
-        conn.close()
+app.include_router(ingest_router)
+app.include_router(backup_router)
+app.include_router(restore_router)
+app.include_router(metrics_router)
+app.include_router(dashboard_router)
+app.include_router(pipeline_router)
+app.include_router(admin_router)
+
+
+from catalog.api.db import get_db
 
 
 # ============================================================================
@@ -336,12 +339,12 @@ def health_check():
     return {"status": "healthy", "service": "catalog-api"}
 
 
-# Root endpoint
-@app.get("/")
+# Root endpoint serving static minimalist UI
+@app.get("/", response_class=HTMLResponse)
 def root():
-    """Root endpoint"""
-    return {
-        "service": "Gorigami Data Catalog API",
-        "version": "1.0.0",
-        "docs": "/docs"
-    }
+    """Serve Upload Portal UI"""
+    static_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    if os.path.exists(static_path):
+        with open(static_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h1>Globant Data Migration Portal</h1><p>Static index.html not found.</p>")

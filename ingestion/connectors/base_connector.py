@@ -1,6 +1,6 @@
 """
 Base Connector Abstract Class
-Defines the interface for all connectors in the Gorigami Data Framework.
+Defines the interface for all connectors in the Data Framework.
 """
 
 from abc import ABC, abstractmethod

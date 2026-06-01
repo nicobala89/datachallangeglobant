@@ -1,6 +1,6 @@
 """
 Base Extractor Abstract Class
-Defines the interface for all extractors in the Gorigami Data Framework.
+Defines the interface for all extractors in the Data Framework.
 """
 
 from abc import ABC, abstractmethod

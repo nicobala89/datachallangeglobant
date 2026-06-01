@@ -1,4 +1,4 @@
-"""Gorigami Data Framework - Extractors Package"""
+"""Data Framework - Extractors Package"""
 
 from .base_extractor import BaseExtractor, ExtractionResult, ExtractorError, SchemaValidationError
 from .file_extractor import FileExtractor

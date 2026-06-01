@@ -1,0 +1,65 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    tables:
+      - name: departments
+        columns:
+          - name: id
+            tests: [unique, not_null]
+          - name: department
+            tests: [not_null]
+      - name: jobs
+        columns:
+          - name: id
+            tests: [unique, not_null]
+          - name: job
+            tests: [not_null]
+      - name: hired_employees
+        columns:
+          - name: id
+            tests: [unique, not_null]
+          - name: name
+            tests: [not_null]
+          - name: datetime
+            tests: [not_null]
+          - name: department_id
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'departments')
+                  field: id
+          - name: job_id
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'jobs')
+                  field: id
+
+models:
+  - name: stg_departments
+    description: "Cleaned departments reference table"
+    columns:
+      - name: id
+        tests: [unique, not_null]
+      - name: department
+        tests: [not_null]
+
+  - name: stg_jobs
+    description: "Cleaned jobs reference table"
+    columns:
+      - name: id
+        tests: [unique, not_null]
+      - name: job
+        tests: [not_null]
+
+  - name: stg_hired_employees
+    description: "Hired employees with parsed datetime fields"
+    columns:
+      - name: id
+        tests: [unique, not_null]
+      - name: hire_year
+        tests: [not_null]
+      - name: hire_quarter
+        tests: [not_null]

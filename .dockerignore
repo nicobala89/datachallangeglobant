@@ -1,0 +1,10 @@
+.venv
+.git
+.pytest_cache
+__pycache__
+**/__pycache__
+**/*.pyc
+backups/*.avro
+.env
+*.md
+.DS_Store

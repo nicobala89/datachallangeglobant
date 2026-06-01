@@ -1,34 +1,35 @@
 # Core Data Processing
-pyspark==3.5.0
-pandas==2.1.4
-numpy==1.26.2
-pyarrow==14.0.1  # For Parquet support
-openpyxl==3.1.2  # For Excel (XLSX) support
+pandas>=2.2.0
+numpy>=1.26.4
+pyarrow>=15.0.0
+openpyxl>=3.1.2
+
+# Transformation Layer
+dbt-core>=1.7.0
+dbt-postgres>=1.7.0
 
 # Database Connectivity
-psycopg2-binary==2.9.9
-sqlalchemy==2.0.23
+psycopg2-binary>=2.9.9
+sqlalchemy>=2.0.23
 
-# Note: PostgreSQL JDBC driver for PySpark
-# Download: https://jdbc.postgresql.org/download/
-# Place in: $SPARK_HOME/jars/ or specify with --jars flag
 
 # Data Quality & Validation
-great-expectations==0.18.8
+great-expectations>=0.18.8
 
 # API & Web
-requests==2.31.0
-fastapi==0.109.0
-uvicorn==0.27.0
+requests>=2.31.0
+fastapi>=0.109.0
+uvicorn>=0.27.0
 
 # Utilities
-python-dotenv==1.0.0
-pyyaml==6.0.1
-loguru==0.7.2
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+loguru>=0.7.2
 
 # Testing
-pytest==7.4.3
-pytest-cov==4.1.0
+pytest>=7.4.3
+pytest-cov>=4.1.0
 
-# Airflow (if running locally without Docker)
-# apache-airflow==2.8.1
+# Challenge Specific Dependencies
+fastavro>=1.9.4
+pydantic>=2.5.0

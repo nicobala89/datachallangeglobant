@@ -1,0 +1,12 @@
+globant_challenge:
+  target: prod
+  outputs:
+    prod:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
+      port: "{{ env_var('POSTGRES_PORT', '5432') | int }}"
+      user: "{{ env_var('POSTGRES_USER', 'globant') }}"
+      password: "{{ env_var('POSTGRES_PASSWORD', 'globant_password') }}"
+      dbname: "{{ env_var('POSTGRES_DB', 'globant_analytics') }}"
+      schema: analytics
+      threads: 2

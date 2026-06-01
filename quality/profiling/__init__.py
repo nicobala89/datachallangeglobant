@@ -1,4 +1,4 @@
-"""Gorigami Data Framework - Quality Profiling Package"""
+"""Data Framework - Quality Profiling Package"""
 
 from .source_profiler import SourceProfiler, SourceProfile
 

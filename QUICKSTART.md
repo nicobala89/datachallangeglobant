@@ -1,172 +1,124 @@
-# Gorigami Data Framework - Quick Start Guide
-
-This guide will help you get the Gorigami Data Framework up and running quickly.
+# Quick Start
 
 ## Prerequisites
 
-- Docker and Docker Compose installed
-- At least 8GB of RAM available
-- Python 3.11+ (for local development)
+- Docker and Docker Compose
+- At least 8 GB of RAM available for the containers
+- Ports 3000, 5432, 7077, 8000, 8080, 8081 free
 
-## Step 1: Initial Setup
+---
 
-1. **Clone or copy this template** to your project directory
-
-2. **Configure environment variables**:
-
-   ```bash
-   cp .env.example .env
-   # Edit .env with your specific configuration
-   ```
-
-3. **Review the Docker Compose configuration**:
-   - PostgreSQL (port 5432)
-   - Airflow (port 8080)
-   - Spark (port 8081)
-   - Metabase (port 3000)
-
-## Step 2: Start the Framework
+## 1. Configure environment
 
 ```bash
-# Start all services
-docker-compose up -d
-
-# Check service status
-docker-compose ps
-
-# View logs
-docker-compose logs -f
+cp .env.example .env
 ```
 
-## Step 3: Initialize Airflow
+The defaults work out of the box. Only change them if you need non-standard credentials:
+
+| Variable | Default |
+|---|---|
+| `API_KEY` | `globant-secret` |
+| `POSTGRES_USER` | `globant` |
+| `POSTGRES_PASSWORD` | `globant_password` |
+| `POSTGRES_DB` | `globant_analytics` |
+| `METABASE_ADMIN_EMAIL` | `admin@globant.com` |
+| `METABASE_ADMIN_PASSWORD` | `globant-admin` |
+
+---
+
+## 2. Start all services
 
 ```bash
-# Initialize Airflow database (first time only)
-docker-compose exec airflow-webserver airflow db init
-
-# Create admin user
-docker-compose exec airflow-webserver airflow users create \
-    --username admin \
-    --firstname Admin \
-    --lastname User \
-    --role Admin \
-    --email admin@gorigami.com \
-    --password admin
+docker compose up -d --build
 ```
 
-## Step 4: Access the Services
+First boot takes 3–5 minutes. Metabase and the Metabase setup script need extra time to initialize.
 
-- **Airflow UI**: <http://localhost:8080> (admin/admin)
-- **Spark Master UI**: <http://localhost:8081>
-- **Metabase**: <http://localhost:3000>
-- **PostgreSQL**: localhost:5432 (gorigami/gorigami_password)
-
-## Step 5: Verify Installation
-
-1. **Check Airflow**:
-   - Navigate to <http://localhost:8080>
-   - Login with admin/admin
-   - You should see the example_pipeline DAG
-
-2. **Check PostgreSQL**:
-
-   ```bash
-   docker-compose exec postgres psql -U gorigami -d gorigami_analytics -c "\dt curated.*"
-   ```
-
-3. **Check Spark**:
-   - Navigate to <http://localhost:8081>
-   - Verify master and worker are running
-
-## Step 6: Run Your First Pipeline
-
-1. **Enable the example DAG** in Airflow UI
-2. **Trigger a manual run**
-3. **Monitor execution** in the Graph view
-4. **Check logs** for each task
-
-## Next Steps
-
-### Configure Data Sources
-
-Edit your extractors in `ingestion/extractors/` to connect to your actual data sources:
-
-```python
-# Example: Configure API extractor
-from ingestion.extractors.api_extractor import APIExtractor
-
-extractor = APIExtractor(
-    base_url=os.getenv('API_BASE_URL'),
-    api_key=os.getenv('API_KEY')
-)
-```
-
-### Create Your First Pipeline
-
-1. **Copy the example DAG**: `airflow/dags/example_pipeline.py`
-2. **Customize for your use case**
-3. **Add your ingestion logic**
-4. **Define transformations**
-5. **Add quality checks**
-
-### Set Up Metabase
-
-1. Navigate to <http://localhost:3000>
-2. Complete initial setup
-3. Connect to PostgreSQL:
-   - Host: `postgres`
-   - Port: `5432`
-   - Database: `gorigami_analytics`
-   - Username: `gorigami`
-   - Password: `gorigami_password`
-4. Create your first dashboard
-
-## Common Commands
+Check status:
 
 ```bash
-# Stop all services
-docker-compose down
-
-# Stop and remove volumes (clean slate)
-docker-compose down -v
-
-# Restart a specific service
-docker-compose restart airflow-scheduler
-
-# View logs for a specific service
-docker-compose logs -f postgres
-
-# Execute commands in a container
-docker-compose exec airflow-webserver bash
+docker compose ps
+docker compose logs -f fastapi       # API server
+docker compose logs -f metabase-setup  # auto-dashboard setup
 ```
+
+---
+
+## 3. Access the services
+
+| Service | URL | Credentials |
+|---|---|---|
+| Web portal | <http://localhost:8000> | API key: `globant-secret` |
+| Swagger docs | <http://localhost:8000/docs> | — |
+| Airflow | <http://localhost:8080> | admin / admin |
+| Metabase | <http://localhost:3000> | admin@globant.com / globant-admin |
+| Spark UI | <http://localhost:8081> | — |
+
+---
+
+## 4. Upload data
+
+1. Open <http://localhost:8000>
+2. Enter your API key (`globant-secret`) and click **Save Key**
+3. Go to the **Ingest** tab
+4. Drag and drop your CSV files for `departments`, `jobs`, and `hired_employees`
+5. The portal validates, chunks, and uploads — rejected rows are reported inline
+
+CSV format expected:
+
+**departments.csv** — `id,department`
+**jobs.csv** — `id,job`
+**hired_employees.csv** — `id,name,datetime,department_id,job_id`
+
+---
+
+## 5. Run the pipeline
+
+Go to the **Pipeline** tab in the portal and trigger `globant_csv_ingestion_dag` or `globant_medallion_pipeline`.
+
+Or trigger directly from Airflow at <http://localhost:8080>.
+
+---
+
+## 6. View analytics
+
+The **Dashboard** tab embeds the Metabase public dashboard automatically once the pipeline has run and the analytics marts are populated.
+
+---
+
+## Common commands
+
+```bash
+# Stop everything (keeps volumes)
+docker compose down
+
+# Full reset — destroy volumes and start clean
+docker compose down -v && docker compose up -d --build
+
+# Rebuild only the API after code changes
+docker compose up -d --build fastapi
+
+# Open a psql shell
+docker compose exec postgres psql -U globant -d globant_analytics
+
+# Tail Airflow logs
+docker compose logs -f airflow-scheduler
+
+# Run tests (outside Docker)
+PYTHONPATH=. pytest tests/test_globant_challenge.py -v
+```
+
+---
 
 ## Troubleshooting
 
-### Airflow won't start
+**Portal returns 401** — API key header missing. Enter `globant-secret` in the portal key field and click Save.
 
-- Check if port 8080 is already in use
-- Ensure database initialization completed
-- Check logs: `docker-compose logs airflow-webserver`
+**Airflow DAG not found** — DAGs mount via a volume. Check `docker compose ps airflow-webserver` and `docker compose logs airflow-scheduler`.
 
-### Spark jobs fail
+**Metabase dashboard blank** — Metabase may still be starting. Wait ~3 minutes and refresh. Check `docker compose logs metabase-setup` for setup progress.
 
-- Verify Spark master is running
-- Check worker resources (memory/cores)
-- Review job logs in Spark UI
+**Port already in use** — Stop conflicting services or change the port mappings in `docker-compose.yml`.
 
-### PostgreSQL connection issues
-
-- Verify container is running: `docker-compose ps postgres`
-- Check credentials in .env file
-- Ensure port 5432 is not blocked
-
-## Development Workflow
-
-1. **Develop locally** - Write and test code on your machine
-2. **Test in Docker** - Run pipelines in containerized environment
-3. **Validate quality** - Ensure all checks pass
-4. **Deploy to production** - Use the same Docker Compose setup
-
-## Support
-
-For issues or questions, contact your Gorigami representative.
+**Postgres auth error after credential change** — The postgres volume stores the old credentials. Run `docker compose down -v` to recreate it.

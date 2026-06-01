@@ -1,4 +1,4 @@
-"""Gorigami Data Framework - Transformers Package"""
+"""Data Framework - Transformers Package"""
 
 from .base_transformer import BaseTransformer, TransformationResult, TransformerError
 

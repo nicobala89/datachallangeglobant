@@ -1,0 +1,30 @@
+version: 2
+
+models:
+  - name: mart_hires_by_quarter
+    description: "Hires grouped by department, job, year, and quarter"
+    columns:
+      - name: department
+        tests: [not_null]
+      - name: job
+        tests: [not_null]
+      - name: hire_year
+        tests: [not_null]
+      - name: q1
+        tests: [not_null]
+      - name: q2
+        tests: [not_null]
+      - name: q3
+        tests: [not_null]
+      - name: q4
+        tests: [not_null]
+
+  - name: mart_departments_above_mean
+    description: "Departments with 2021 hires above the company mean"
+    columns:
+      - name: id
+        tests: [unique, not_null]
+      - name: department
+        tests: [not_null]
+      - name: hired
+        tests: [not_null]

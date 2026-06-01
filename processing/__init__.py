@@ -1,1 +1,1 @@
-"""Gorigami Data Framework - Processing Module"""
+"""Data Framework - Processing Module"""
