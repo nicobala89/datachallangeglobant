@@ -1,0 +1,25 @@
+FROM apache/airflow:2.8.1-python3.11
+
+USER airflow
+
+RUN pip install --no-cache-dir \
+    fastavro>=1.9.4 \
+    pydantic>=2.5.0 \
+    psycopg2-binary>=2.9.9 \
+    pyarrow>=15.0.0 \
+    pandas>=2.2.0 \
+    dbt-core>=1.7.0 \
+    dbt-postgres>=1.7.0
+
+COPY --chown=airflow:root airflow/dags/        /opt/airflow/dags/
+COPY --chown=airflow:root ingestion/           /opt/airflow/ingestion/
+COPY --chown=airflow:root processing/          /opt/airflow/processing/
+COPY --chown=airflow:root catalog/             /opt/airflow/catalog/
+COPY --chown=airflow:root storage/             /opt/airflow/storage/
+COPY --chown=airflow:root dbt/                 /opt/airflow/dbt/
+
+ENV PYTHONPATH=/opt/airflow
+
+# airflow standalone runs webserver + scheduler + triggerer in one process.
+# AIRFLOW__WEBSERVER__WEB_SERVER_PORT lets Railway's injected $PORT override 8080.
+CMD ["sh", "-c", "AIRFLOW__WEBSERVER__WEB_SERVER_PORT=${PORT:-8080} airflow standalone"]
