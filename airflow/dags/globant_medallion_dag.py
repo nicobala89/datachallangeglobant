@@ -45,10 +45,14 @@ DBT_DIR    = os.getenv("DBT_PROJECT_DIR", "/opt/airflow/dbt")
 def land_to_bronze(**ctx):
     """
     Read each CSV and write it as a Parquet partition in the Bronze layer.
-    Purely a landing step — no validation, no transformation.
-    The raw shape of the source is preserved exactly.
+    When SKIP_BRONZE=true (e.g. Railway deployment where data arrives via API)
+    this step is a no-op — Silver is already populated by the FastAPI ingest endpoint.
     """
     import pandas as pd
+
+    if os.getenv("SKIP_BRONZE", "false").lower() == "true":
+        print("[Bronze] SKIP_BRONZE=true — data was ingested via API, skipping CSV landing.")
+        return
 
     tables = {
         "departments":     ["id", "department"],

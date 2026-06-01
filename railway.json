@@ -1,14 +1,30 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile"
-  },
-  "deploy": {
-    "startCommand": "sh -c 'uvicorn catalog.api.catalog_api:app --host 0.0.0.0 --port $PORT --proxy-headers'",
-    "healthcheckPath": "/health",
-    "healthcheckTimeout": 300,
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 3
+  "services": {
+    "datachallangeglobant": {
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "sh -c 'uvicorn catalog.api.catalog_api:app --host 0.0.0.0 --port $PORT --proxy-headers'",
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 300,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 3
+      }
+    },
+    "innovative-compassion": {
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "Dockerfile.airflow"
+      },
+      "deploy": {
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 300,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 3
+      }
+    }
   }
 }
