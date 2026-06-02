@@ -7,15 +7,21 @@ Implements the full Bronze → Silver → Gold pipeline.
   Silver  : Validated, typed rows in PostgreSQL raw.* (pandas + psycopg2)
   Gold    : Aggregated analytics marts in PostgreSQL analytics.* (dbt-core)
 
+Execution paths
+---------------
+  check_data_source decides which path to take at runtime:
+
+  1. All 3 CSVs present  → full pipeline  (Bronze → Silver → Gold)
+  2. No CSVs, raw tables have data → Gold only (dbt re-runs marts)
+  3. No CSVs, raw tables empty    → skip gracefully (nothing to do)
+
 Design decisions
 -----------------
 - Bronze is immutable: landing new data never overwrites existing partitions.
 - Silver uses ON CONFLICT (id) DO NOTHING so re-runs are idempotent.
 - Gold uses dbt table materialisation (TRUNCATE + INSERT) for a consistent snapshot.
 - Tasks are ordered by FK dependency: departments → jobs → hired_employees.
-- dbt only runs after all three Silver tables are loaded.
-- At scale, Bronze→Silver would move to a SparkSubmitOperator targeting a cluster;
-  the dbt Gold layer stays the same since dbt pushes compute down into the DB.
+- dbt only runs after all three Silver tables are loaded (or via skip_to_gold).
 """
 
 import os
@@ -24,8 +30,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.bash import BashOperator
+from airflow.operators.empty import EmptyOperator
+from airflow.utils.trigger_rule import TriggerRule
 
 default_args = {
     "owner": "globant",
@@ -39,20 +47,68 @@ CSV_DIR    = os.getenv("CSV_DIR", "data/csv")
 BRONZE_DIR = os.getenv("BRONZE_BASE_PATH", "data/bronze")
 DBT_DIR    = os.getenv("DBT_PROJECT_DIR", "/opt/airflow/dbt")
 
+_TABLES = ["departments", "jobs", "hired_employees"]
+
+
+# ── Stage 0: Check data source ─────────────────────────────────────────────────
+
+def check_data_source(**ctx):
+    """
+    Decides the execution path:
+      - 'land_csv_to_bronze' if all 3 CSVs exist
+      - 'skip_to_gold'       if no CSVs but raw tables already have data
+      - 'nothing_to_do'      if neither
+    """
+    import psycopg2
+
+    csv_paths = [os.path.join(CSV_DIR, f"{t}.csv") for t in _TABLES]
+    found = [p for p in csv_paths if os.path.exists(p)]
+
+    if len(found) == len(_TABLES):
+        print(f"[check] All {len(_TABLES)} CSVs found → full pipeline")
+        return "land_csv_to_bronze"
+
+    if found:
+        print(f"[check] Partial CSVs ({len(found)}/{len(_TABLES)}) — need all to proceed; checking raw tables instead")
+    else:
+        print("[check] No CSVs found → checking raw tables")
+
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=int(os.getenv("POSTGRES_PORT", 5432)),
+            dbname=os.getenv("POSTGRES_DB", "globant_analytics"),
+            user=os.getenv("POSTGRES_USER", "globant"),
+            password=os.getenv("POSTGRES_PASSWORD", "globant_password"),
+        )
+        cur = conn.cursor()
+        counts = {}
+        for t in _TABLES:
+            cur.execute(f"SELECT COUNT(*) FROM raw.{t}")
+            counts[t] = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+
+        total = sum(counts.values())
+        print(f"[check] Raw table row counts: {counts} (total={total})")
+
+        if total > 0:
+            print("[check] Raw data found → skipping Bronze/Silver, running Gold only")
+            return "skip_to_gold"
+
+        print("[check] No CSVs and raw tables are empty → nothing to do")
+        return "nothing_to_do"
+
+    except Exception as e:
+        print(f"[check] DB check failed ({e}) → nothing to do")
+        return "nothing_to_do"
+
 
 # ── Stage 1: Bronze ────────────────────────────────────────────────────────────
 
 def land_to_bronze(**ctx):
-    """
-    Read each CSV and write it as a Parquet partition in the Bronze layer.
-    When SKIP_BRONZE=true (e.g. Railway deployment where data arrives via API)
-    this step is a no-op — Silver is already populated by the FastAPI ingest endpoint.
-    """
+    """Read each CSV and write as a Parquet partition in the Bronze layer."""
     import pandas as pd
-
-    if os.getenv("SKIP_BRONZE", "false").lower() == "true":
-        print("[Bronze] SKIP_BRONZE=true — data was ingested via API, skipping CSV landing.")
-        return
 
     tables = {
         "departments":     ["id", "department"],
@@ -83,10 +139,8 @@ def bronze_to_silver(table_name: str, **ctx):
     Idempotency:
       - new row     → inserted
       - exact match → skipped (no write)
-      - same id, different data → logged to raw.rejected_log as CONFLICT, not written
+      - same id, different data → logged to raw.rejected_log as CONFLICT
       - invalid row → logged to raw.rejected_log as REJECTED
-
-    At scale this step would be replaced by a SparkSubmitOperator targeting a cluster.
     """
     import json
     import pandas as pd
@@ -136,7 +190,6 @@ def bronze_to_silver(table_name: str, **ctx):
     )
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # ── Idempotency check ────────────────────────────────────────────────────
     def _normalize(val) -> str:
         if val is None:
             return ""
@@ -184,7 +237,6 @@ def bronze_to_silver(table_name: str, **ctx):
                         f"CONFLICT id={row_id}: {diff_str}",
                     ))
 
-    # ── Write to rejected_log ────────────────────────────────────────────────
     if rejected_log:
         execute_values(
             cur,
@@ -192,7 +244,6 @@ def bronze_to_silver(table_name: str, **ctx):
             rejected_log,
         )
 
-    # ── Insert new rows only ─────────────────────────────────────────────────
     if new_rows:
         columns = list(new_rows[0].keys())
         execute_values(
@@ -224,7 +275,13 @@ with DAG(
     tags=["globant", "medallion", "bronze", "silver", "gold", "dbt"],
 ) as dag:
 
-    # Stage 1 — land all three CSVs atomically
+    # Stage 0 — decide execution path
+    t_check = BranchPythonOperator(
+        task_id="check_data_source",
+        python_callable=check_data_source,
+    )
+
+    # Stage 1 — land all three CSVs atomically (taken only when CSVs exist)
     t_bronze = PythonOperator(
         task_id="land_csv_to_bronze",
         python_callable=land_to_bronze,
@@ -247,9 +304,18 @@ with DAG(
         op_kwargs={"table_name": "hired_employees"},
     )
 
-    # Stage 3 — Gold via dbt (runs after all Silver tables are ready)
+    # Marker task: raw tables already have data, jump straight to Gold
+    t_skip_to_gold = EmptyOperator(task_id="skip_to_gold")
+
+    # Marker task: no data at all, end gracefully
+    t_nothing = EmptyOperator(task_id="nothing_to_do")
+
+    # Stage 3 — Gold via dbt
+    # NONE_FAILED_MIN_ONE_SUCCESS: runs when either the Silver path or the
+    # skip_to_gold path succeeded; stays skipped when nothing_to_do was taken.
     t_gold = BashOperator(
         task_id="dbt_run_gold_marts",
+        trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS,
         bash_command=(
             f"cd {DBT_DIR} && "
             f"dbt run --profiles-dir {DBT_DIR} --select marts "
@@ -268,12 +334,15 @@ with DAG(
 
     # ── Dependencies ──────────────────────────────────────────────────────────
     #
-    #   land_csv_to_bronze
-    #        ├── bronze_to_silver_departments ─┐
-    #        └── bronze_to_silver_jobs         ├── bronze_to_silver_hired_employees
-    #                                          │
-    #                                          └── dbt_run_gold_marts
+    #   check_data_source
+    #     ├── land_csv_to_bronze
+    #     │       ├── bronze_to_silver_departments ─┐
+    #     │       └── bronze_to_silver_jobs         ├── bronze_to_silver_hired_employees ─┐
+    #     │                                         │                                     ├── dbt_run_gold_marts
+    #     ├── skip_to_gold ────────────────────────────────────────────────────────────────┘
+    #     └── nothing_to_do  (end — gold stays skipped)
     #
+    t_check >> [t_bronze, t_skip_to_gold, t_nothing]
     t_bronze >> [t_silver_dept, t_silver_jobs]
     [t_silver_dept, t_silver_jobs] >> t_silver_emp
-    t_silver_emp >> t_gold
+    [t_silver_emp, t_skip_to_gold] >> t_gold
