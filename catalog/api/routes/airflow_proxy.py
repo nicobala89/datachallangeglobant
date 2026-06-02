@@ -5,20 +5,18 @@ from requests.auth import HTTPBasicAuth
 
 router = APIRouter(prefix="/api/v1/pipeline", tags=["pipeline"])
 
-AF_URL  = os.getenv("AIRFLOW_URL",      "http://airflow-webserver:8080")
-AF_USER = os.getenv("AIRFLOW_USERNAME", "admin")
-AF_PASS = os.getenv("AIRFLOW_PASSWORD", "admin")
-
-_auth = HTTPBasicAuth(AF_USER, AF_PASS)
-_headers = {"Content-Type": "application/json"}
-
 
 def _af(method: str, path: str, **kwargs):
+    # Read env vars per-request so Railway's late injection is always picked up.
+    # rstrip('/') prevents double-slash when AIRFLOW_URL has a trailing slash.
+    url  = os.getenv("AIRFLOW_URL", "http://airflow-webserver:8080").rstrip("/")
+    user = os.getenv("AIRFLOW_USERNAME", os.getenv("AIRFLOW_ADMIN_USERNAME", "admin"))
+    pwd  = os.getenv("AIRFLOW_PASSWORD", os.getenv("AIRFLOW_ADMIN_PASSWORD", "admin"))
     r = requests.request(
         method,
-        f"{AF_URL}/api/v1{path}",
-        auth=_auth,
-        headers=_headers,
+        f"{url}/api/v1{path}",
+        auth=HTTPBasicAuth(user, pwd),
+        headers={"Content-Type": "application/json"},
         timeout=10,
         **kwargs,
     )

@@ -8,10 +8,11 @@ import psycopg2
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
-API_KEY = os.getenv("API_KEY", "globant-secret")
-AF_URL  = os.getenv("AIRFLOW_URL",      "http://airflow-webserver:8080")
-AF_USER = os.getenv("AIRFLOW_USERNAME", "admin")
-AF_PASS = os.getenv("AIRFLOW_PASSWORD", "admin")
+def _af_creds():
+    url  = os.getenv("AIRFLOW_URL", "http://airflow-webserver:8080").rstrip("/")
+    user = os.getenv("AIRFLOW_USERNAME", os.getenv("AIRFLOW_ADMIN_USERNAME", "admin"))
+    pwd  = os.getenv("AIRFLOW_PASSWORD", os.getenv("AIRFLOW_ADMIN_PASSWORD", "admin"))
+    return url, HTTPBasicAuth(user, pwd)
 
 _TRUNCATE_TABLES = [
     "raw.hired_employees",
@@ -75,7 +76,7 @@ def _clear_bronze() -> dict:
 
 
 def _clear_airflow_runs() -> dict:
-    auth = HTTPBasicAuth(AF_USER, AF_PASS)
+    af_url, auth = _af_creds()
     headers = {"Content-Type": "application/json"}
     deleted_total = 0
     errors = []
@@ -83,7 +84,7 @@ def _clear_airflow_runs() -> dict:
     for dag_id in _ALL_DAGS:
         try:
             r = requests.get(
-                f"{AF_URL}/api/v1/dags/{dag_id}/dagRuns?limit=200",
+                f"{af_url}/api/v1/dags/{dag_id}/dagRuns?limit=200",
                 auth=auth, headers=headers, timeout=10,
             )
             if r.status_code == 404:
@@ -93,7 +94,7 @@ def _clear_airflow_runs() -> dict:
             for run in runs:
                 run_id = run["dag_run_id"]
                 d = requests.delete(
-                    f"{AF_URL}/api/v1/dags/{dag_id}/dagRuns/{run_id}",
+                    f"{af_url}/api/v1/dags/{dag_id}/dagRuns/{run_id}",
                     auth=auth, headers=headers, timeout=10,
                 )
                 if d.ok:
