@@ -67,6 +67,23 @@ def init_db_schema():
         print("✓ DB schema initialized")
     except Exception as e:
         print(f"⚠ DB schema init warning: {e}")
+
+@app.on_event("startup")
+def setup_metabase():
+    import threading
+    def _run():
+        import time
+        import sys
+        sys.path.insert(0, "/app")
+        time.sleep(60)
+        try:
+            from scripts.metabase_setup import run
+            run()
+            print("✓ Metabase setup completed")
+        except Exception as e:
+            print(f"⚠ Metabase setup warning: {e}")
+    threading.Thread(target=_run, daemon=True).start()
+
 from catalog.api.routes.backup import router as backup_router
 from catalog.api.routes.restore import router as restore_router
 from catalog.api.routes.metrics import router as metrics_router
