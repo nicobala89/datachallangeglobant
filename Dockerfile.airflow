@@ -9,7 +9,8 @@ RUN pip install --no-cache-dir \
     pyarrow>=15.0.0 \
     pandas>=2.2.0 \
     dbt-core>=1.7.0 \
-    dbt-postgres>=1.7.0
+    dbt-postgres>=1.7.0 \
+    loguru>=0.7.2
 
 COPY --chown=airflow:root airflow/dags/        /opt/airflow/dags/
 COPY --chown=airflow:root airflow/entrypoint.sh /entrypoint.sh
