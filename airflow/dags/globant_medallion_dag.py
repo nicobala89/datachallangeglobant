@@ -269,6 +269,9 @@ with DAG(
     )
 
     # Stage 3 — Gold via dbt (always runs; TRUNCATE+INSERT = consistent snapshot)
+    # append_env=True only: dbt inherits env vars from the Airflow worker process
+    # at execution time. Using env={os.getenv(...)} would freeze values at DAG
+    # parse time, before Railway has injected the runtime env vars.
     t_gold = BashOperator(
         task_id="dbt_run_gold_marts",
         bash_command=(
@@ -276,14 +279,6 @@ with DAG(
             f"dbt run --profiles-dir {DBT_DIR} --select marts "
             f"--vars '{{\"execution_date\": \"{{{{ ds }}}}\"}}'  "
         ),
-        env={
-            "POSTGRES_HOST":     os.getenv("POSTGRES_HOST", "localhost"),
-            "POSTGRES_PORT":     os.getenv("POSTGRES_PORT", "5432"),
-            "POSTGRES_DB":       os.getenv("POSTGRES_DB", "globant_analytics"),
-            "POSTGRES_USER":     os.getenv("POSTGRES_USER", "globant"),
-            "POSTGRES_PASSWORD": os.getenv("POSTGRES_PASSWORD", "globant_password"),
-            "PATH":              os.getenv("PATH", "/usr/local/bin:/usr/bin:/bin"),
-        },
         append_env=True,
     )
 
