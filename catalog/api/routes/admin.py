@@ -8,6 +8,8 @@ import psycopg2
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
+API_KEY = os.getenv("API_KEY", "")
+
 def _af_creds():
     url  = os.getenv("AIRFLOW_URL", "http://airflow-webserver:8080").rstrip("/")
     user = os.getenv("AIRFLOW_USERNAME", os.getenv("AIRFLOW_ADMIN_USERNAME", "admin"))
