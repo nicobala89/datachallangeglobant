@@ -11,8 +11,11 @@ from psycopg2.extras import RealDictCursor
 import os
 from loguru import logger
 
-AIRFLOW_PUBLIC_URL  = os.getenv("AIRFLOW_PUBLIC_URL",  "http://localhost:8080")
-METABASE_PUBLIC_URL = os.getenv("METABASE_PUBLIC_URL", "http://localhost:3000")
+# For the browser-facing URLs, prefer the explicit *_PUBLIC_URL vars.
+# Fall back to the plain AIRFLOW_URL / METABASE_URL so a single env var
+# covers both internal (backend) and public (browser) access on simple setups.
+AIRFLOW_PUBLIC_URL  = os.getenv("AIRFLOW_PUBLIC_URL",  os.getenv("AIRFLOW_URL",  "http://localhost:8080"))
+METABASE_PUBLIC_URL = os.getenv("METABASE_PUBLIC_URL", os.getenv("METABASE_URL", "http://localhost:3000"))
 
 from catalog.api.models import (
     Dataset, DatasetCreate, DatasetSchema, LineageGraph,
