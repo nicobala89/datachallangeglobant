@@ -42,6 +42,31 @@ app.add_middleware(
 
 from fastapi.responses import HTMLResponse
 from catalog.api.routes.ingest import router as ingest_router
+
+@app.on_event("startup")
+def init_db_schema():
+    schema_path = os.path.join(os.path.dirname(__file__), "../../storage/sql/globant_schema.sql")
+    host = os.getenv("POSTGRES_HOST", "").strip()
+    if not host:
+        print("⚠ DB schema init skipped: POSTGRES_HOST not set")
+        return
+    try:
+        conn = psycopg2.connect(
+            host=host,
+            port=int(os.getenv("POSTGRES_PORT", 5432)),
+            database=os.getenv("POSTGRES_DB", "globant_analytics"),
+            user=os.getenv("POSTGRES_USER", "globant"),
+            password=os.getenv("POSTGRES_PASSWORD", ""),
+        )
+        conn.autocommit = True
+        cur = conn.cursor()
+        with open(schema_path, "r") as f:
+            cur.execute(f.read())
+        cur.close()
+        conn.close()
+        print("✓ DB schema initialized")
+    except Exception as e:
+        print(f"⚠ DB schema init warning: {e}")
 from catalog.api.routes.backup import router as backup_router
 from catalog.api.routes.restore import router as restore_router
 from catalog.api.routes.metrics import router as metrics_router
