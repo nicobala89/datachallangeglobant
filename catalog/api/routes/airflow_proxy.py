@@ -1,7 +1,8 @@
 import os
 import requests
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from requests.auth import HTTPBasicAuth
+from catalog.api.routes.ingest import get_api_key
 
 router = APIRouter(prefix="/api/v1/pipeline", tags=["pipeline"])
 
@@ -40,7 +41,7 @@ def list_dags():
 
 
 @router.post("/dags/{dag_id}/trigger")
-def trigger_dag(dag_id: str):
+def trigger_dag(dag_id: str, _key: str = Depends(get_api_key)):
     """Unpause (if needed) and trigger a DAG run."""
     try:
         # Unpause first so the run actually executes
